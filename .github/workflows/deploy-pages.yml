@@ -1,0 +1,70 @@
+name: Deploy PexSwap frontend to GitHub Pages
+
+# Publishes frontend/ to GitHub Pages on every push to the working branch,
+# or manually via the "Run workflow" button. No server / VPS involved.
+on:
+  push:
+    branches:
+      - claude/pexswap-dex-pexli-v2-31afl5
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deploy at a time.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        env:
+          # Base path must match the repository name, e.g. /PexSwap/
+          VITE_BASE: /${{ github.event.repository.name }}/
+          # These come from repo Settings -> Secrets and variables -> Actions -> Variables.
+          # Fill them in after you deploy the contracts (see LAUNCH.md).
+          VITE_PEXLI_CHAIN_ID: ${{ vars.VITE_PEXLI_CHAIN_ID }}
+          VITE_PEXLI_RPC_URL: ${{ vars.VITE_PEXLI_RPC_URL }}
+          VITE_PEXLI_EXPLORER: ${{ vars.VITE_PEXLI_EXPLORER }}
+          VITE_PEXSWAP_FACTORY: ${{ vars.VITE_PEXSWAP_FACTORY }}
+          VITE_PEXSWAP_ROUTER: ${{ vars.VITE_PEXSWAP_ROUTER }}
+          VITE_WPEX: ${{ vars.VITE_WPEX }}
+          VITE_TOKEN_USDP: ${{ vars.VITE_TOKEN_USDP }}
+          VITE_TOKEN_PXLI: ${{ vars.VITE_TOKEN_PXLI }}
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

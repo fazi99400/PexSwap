@@ -6,6 +6,7 @@
   "scripts": {
     "build": "hardhat compile",
     "test": "node test/e2e.mjs",
+    "deploy": "node scripts/deploy-standalone.mjs",
     "deploy:testnet": "hardhat run scripts/deploy.js --network pexliTestnet",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost"
   },

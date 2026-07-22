@@ -136,7 +136,20 @@ cd frontend && npm install && npm run build
 
 ---
 
-## Quick start
+## Going live (no VPS)
+
+Deploy the contracts from your laptop, then host the interface free on **GitHub
+Pages** — full step-by-step in **[LAUNCH.md](LAUNCH.md)**. In short:
+
+```bash
+cd contracts-solidity && npm install
+PEXLI_RPC_URL=https://your-pexli-rpc PRIVATE_KEY=0x... SEED=1 npm run deploy
+```
+
+then add the printed addresses as repo **Actions Variables** and enable Pages — the
+included workflow (`.github/workflows/deploy-pages.yml`) builds and publishes on push.
+
+## Quick start (local dev)
 
 ### 1 — Deploy the contracts
 
