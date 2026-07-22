@@ -1,0 +1,144 @@
+/* PexSwap theme — Uniswap-style layout, but orange instead of pink. */
+:root {
+  --pex-orange: #ff7a00;
+  --pex-orange-bright: #ff9a3d;
+  --pex-orange-deep: #e85d00;
+  --pex-orange-soft: #fff1e6;
+  --bg: #0d0b0a;
+  --bg-elev: #17130f;
+  --card: #1f1a15;
+  --card-2: #271f18;
+  --border: #3a2e22;
+  --text: #fff6ee;
+  --text-dim: #b9a996;
+  --green: #34d399;
+  --red: #f87171;
+  --radius: 22px;
+  --shadow: 0 12px 40px rgba(255, 122, 0, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 600px at 50% -10%, rgba(255, 122, 0, 0.18), transparent 60%),
+    radial-gradient(800px 500px at 90% 10%, rgba(255, 154, 61, 0.10), transparent 55%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.app { min-height: 100%; display: flex; flex-direction: column; }
+
+/* ---------- Header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 28px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
+.brand .logo {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--pex-orange-bright), var(--pex-orange-deep));
+  display: grid; place-items: center; color: #fff; font-weight: 900;
+  box-shadow: var(--shadow);
+}
+.brand .pex { color: var(--pex-orange-bright); }
+
+.nav { display: flex; gap: 6px; background: var(--bg-elev); padding: 6px; border-radius: 16px; border: 1px solid var(--border); }
+.nav button {
+  background: transparent; border: none; color: var(--text-dim);
+  padding: 9px 18px; border-radius: 12px; font-weight: 600; font-size: 15px; cursor: pointer;
+  transition: all 0.15s;
+}
+.nav button:hover { color: var(--text); }
+.nav button.active { background: var(--pex-orange); color: #fff; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  border: none; border-radius: 16px; font-weight: 700; cursor: pointer;
+  padding: 12px 18px; font-size: 15px; transition: transform 0.08s, filter 0.15s;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--pex-orange-bright), var(--pex-orange-deep));
+  color: #fff; width: 100%; padding: 16px; font-size: 17px;
+  box-shadow: var(--shadow);
+}
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+.btn-ghost { background: var(--card-2); color: var(--text); border: 1px solid var(--border); }
+.btn-connect { background: var(--pex-orange-soft); color: var(--pex-orange-deep); font-weight: 800; }
+
+/* ---------- Cards ---------- */
+.container { flex: 1; display: flex; justify-content: center; padding: 40px 16px 80px; }
+.card {
+  width: 100%; max-width: 480px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow);
+}
+.card-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-title h2 { margin: 0; font-size: 19px; }
+.subtle { color: var(--text-dim); font-size: 13px; }
+
+/* ---------- Token amount rows ---------- */
+.field {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: 18px;
+  padding: 16px; margin-bottom: 6px;
+}
+.field-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.amount-input {
+  background: transparent; border: none; outline: none; color: var(--text);
+  font-size: 30px; font-weight: 600; width: 60%; min-width: 0;
+}
+.amount-input::placeholder { color: #6b5b49; }
+.field-bottom { display: flex; justify-content: space-between; margin-top: 8px; }
+
+.token-select {
+  display: flex; align-items: center; gap: 8px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px;
+  font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.token-select:hover { border-color: var(--pex-orange); }
+.token-logo { font-size: 18px; }
+.lane-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; margin-left: 4px;
+}
+.lane-rust { background: rgba(255, 122, 0, 0.18); color: var(--pex-orange-bright); }
+.lane-solidity { background: rgba(120, 140, 255, 0.16); color: #a7b4ff; }
+
+.swap-arrow {
+  display: grid; place-items: center; width: 36px; height: 36px; margin: -14px auto;
+  background: var(--card); border: 4px solid var(--card); border-radius: 12px;
+  color: var(--pex-orange-bright); position: relative; z-index: 2; cursor: pointer;
+}
+
+.info-row { display: flex; justify-content: space-between; padding: 10px 4px; font-size: 14px; color: var(--text-dim); }
+.info-row b { color: var(--text); font-weight: 600; }
+
+.msg { padding: 10px 12px; border-radius: 12px; font-size: 13px; margin-top: 10px; }
+.msg-error { background: rgba(248, 113, 113, 0.12); color: var(--red); }
+.msg-ok { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+
+/* ---------- Modal ---------- */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; z-index: 50; }
+.modal { width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.token-row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; cursor: pointer; }
+.token-row:hover { background: var(--card-2); }
+.token-row .sym { font-weight: 700; }
+.token-row .nm { color: var(--text-dim); font-size: 13px; }
+
+.footer { text-align: center; color: var(--text-dim); font-size: 13px; padding: 24px; }
+
+.pools-table { width: 100%; border-collapse: collapse; }
+.pools-table th { text-align: left; color: var(--text-dim); font-weight: 600; font-size: 13px; padding: 10px 8px; }
+.pools-table td { padding: 12px 8px; border-top: 1px solid var(--border); }
+
+@media (max-width: 560px) {
+  .header { flex-direction: column; gap: 12px; padding: 14px; }
+  .amount-input { font-size: 26px; }
+}

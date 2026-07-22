@@ -1,0 +1,21 @@
+# Node
+node_modules/
+dist/
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# Rust
+target/
+Cargo.lock
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

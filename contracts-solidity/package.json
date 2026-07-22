@@ -1,0 +1,19 @@
+{
+  "name": "pexswap-contracts-solidity",
+  "version": "1.0.0",
+  "description": "PexSwap AMM core + periphery contracts for the pexli-v2 EVM lane",
+  "license": "MIT",
+  "scripts": {
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network pexliTestnet",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  },
+  "dependencies": {
+    "solc": "^0.8.24"
+  }
+}
