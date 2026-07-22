@@ -6,6 +6,7 @@ import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI } from "../config/abis";
 import { parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
+import { TokenIcon, IconChevron, IconPlus } from "../components/Icons";
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
 
@@ -100,12 +101,14 @@ export function Pool() {
             onChange={(e) => setAmtA(e.target.value.replace(/[^0-9.]/g, ""))}
           />
           <button className="token-select" onClick={() => setPicking("a")}>
-            <span className="token-logo">{tokenA.logo}</span> {tokenA.symbol} ▾
+            <TokenIcon token={tokenA} size={24} />
+            <span className="ts-sym">{tokenA.symbol}</span>
+            <IconChevron size={15} />
           </button>
         </div>
       </div>
 
-      <div className="swap-arrow">+</div>
+      <div className="swap-arrow"><IconPlus size={18} /></div>
 
       <div className="field">
         <div className="field-top">
@@ -116,7 +119,9 @@ export function Pool() {
             onChange={(e) => setAmtB(e.target.value.replace(/[^0-9.]/g, ""))}
           />
           <button className="token-select" onClick={() => setPicking("b")}>
-            <span className="token-logo">{tokenB.logo}</span> {tokenB.symbol} ▾
+            <TokenIcon token={tokenB} size={24} />
+            <span className="ts-sym">{tokenB.symbol}</span>
+            <IconChevron size={15} />
           </button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
+import { TokenIcon, LaneMark, IconChevron, IconArrowDown, IconSettings } from "../components/Icons";
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
 // Native PEX routes through WPEX inside the pool path.
@@ -132,7 +133,10 @@ export function Swap() {
     <div className="card">
       <div className="card-title">
         <h2>Swap</h2>
-        <span className="subtle">pexli-v2 · 0.30% fee</span>
+        <div className="card-title-right">
+          <span className="pill-tag">pexli-v2 · 0.30% fee</span>
+          <span className="icon-btn" aria-label="Settings"><IconSettings size={17} /></span>
+        </div>
       </div>
 
       {/* From */}
@@ -146,8 +150,10 @@ export function Swap() {
             onChange={(e) => setAmountIn(e.target.value.replace(/[^0-9.]/g, ""))}
           />
           <button className="token-select" onClick={() => setPicking("in")}>
-            <span className="token-logo">{tokenIn.logo}</span> {tokenIn.symbol}
-            <span className={`lane-badge lane-${tokenIn.lane}`}>{tokenIn.lane}</span> ▾
+            <TokenIcon token={tokenIn} size={24} />
+            <span className="ts-sym">{tokenIn.symbol}</span>
+            <span className={`lane-badge lane-${tokenIn.lane}`}><LaneMark lane={tokenIn.lane} /></span>
+            <IconChevron size={15} />
           </button>
         </div>
         <div className="field-bottom subtle">
@@ -156,7 +162,7 @@ export function Swap() {
         </div>
       </div>
 
-      <div className="swap-arrow" onClick={flip}>↓</div>
+      <div className="swap-arrow" onClick={flip} role="button" aria-label="Flip"><IconArrowDown size={18} /></div>
 
       {/* To */}
       <div className="field">
@@ -168,8 +174,10 @@ export function Swap() {
             readOnly
           />
           <button className="token-select" onClick={() => setPicking("out")}>
-            <span className="token-logo">{tokenOut.logo}</span> {tokenOut.symbol}
-            <span className={`lane-badge lane-${tokenOut.lane}`}>{tokenOut.lane}</span> ▾
+            <TokenIcon token={tokenOut} size={24} />
+            <span className="ts-sym">{tokenOut.symbol}</span>
+            <span className={`lane-badge lane-${tokenOut.lane}`}><LaneMark lane={tokenOut.lane} /></span>
+            <IconChevron size={15} />
           </button>
         </div>
         <div className="field-bottom subtle">

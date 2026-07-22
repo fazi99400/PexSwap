@@ -10,7 +10,8 @@ export interface Token {
   name: string;
   decimals: number;
   lane: Lane;
-  logo?: string;
+  /** Gradient stops [from, to] used to render the coin's SVG icon. */
+  color: [string, string];
 }
 
 export const NATIVE_PEX: Token = {
@@ -19,7 +20,7 @@ export const NATIVE_PEX: Token = {
   name: "Pexli",
   decimals: 18,
   lane: "solidity",
-  logo: "🟠",
+  color: ["#FFB35C", "#FF6A00"],
 };
 
 // Populate with your deployed test tokens (see deploy.js output).
@@ -32,7 +33,7 @@ export const DEFAULT_TOKENS: Token[] = [
     name: "Wrapped PEX",
     decimals: 18,
     lane: "solidity",
-    logo: "🟠",
+    color: ["#FFC27A", "#E85D00"],
   },
   {
     address: (import.meta.env.VITE_TOKEN_USDP ??
@@ -41,15 +42,15 @@ export const DEFAULT_TOKENS: Token[] = [
     name: "Pexli USD",
     decimals: 18,
     lane: "solidity",
-    logo: "💵",
+    color: ["#4FE0A0", "#12A150"],
   },
   {
     address: (import.meta.env.VITE_TOKEN_PXLI ??
       "0x0000000000000000000000000000000000000002") as `0x${string}`,
     symbol: "PXLI",
-    name: "Pexli Gold (Rust lane)",
+    name: "Pexli Gold",
     decimals: 18,
     lane: "rust",
-    logo: "🦀",
+    color: ["#FFDE7A", "#E0A400"],
   },
 ];

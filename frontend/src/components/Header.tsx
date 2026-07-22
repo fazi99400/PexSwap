@@ -1,4 +1,5 @@
 import { ConnectButton } from "./ConnectButton";
+import { BrandMark } from "./Icons";
 
 export type Tab = "swap" | "pool" | "tokens";
 
@@ -6,7 +7,7 @@ export function Header({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
   return (
     <header className="header">
       <div className="brand">
-        <span className="logo">P</span>
+        <BrandMark size={34} />
         <span>
           Pex<span className="pex">Swap</span>
         </span>

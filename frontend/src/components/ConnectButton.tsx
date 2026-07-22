@@ -2,6 +2,7 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } fro
 import { injected } from "wagmi/connectors";
 import { pexli } from "../config/chain";
 import { shortAddr } from "../lib/format";
+import { IconWallet } from "./Icons";
 
 export function ConnectButton() {
   const { address, isConnected } = useAccount();
@@ -13,7 +14,7 @@ export function ConnectButton() {
   if (!isConnected) {
     return (
       <button className="btn btn-connect" onClick={() => connect({ connector: injected() })}>
-        Connect Wallet
+        <IconWallet size={17} /> Connect Wallet
       </button>
     );
   }
@@ -27,8 +28,8 @@ export function ConnectButton() {
   }
 
   return (
-    <button className="btn btn-ghost" onClick={() => disconnect()}>
-      🟠 {shortAddr(address)}
+    <button className="btn btn-ghost btn-account" onClick={() => disconnect()}>
+      <span className="account-dot" /> {shortAddr(address)}
     </button>
   );
 }
