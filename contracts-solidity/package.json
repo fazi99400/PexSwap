@@ -5,12 +5,14 @@
   "license": "MIT",
   "scripts": {
     "build": "hardhat compile",
-    "test": "hardhat test",
+    "test": "node test/e2e.mjs",
     "deploy:testnet": "hardhat run scripts/deploy.js --network pexliTestnet",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "ethers": "^6.17.0",
+    "ganache": "^7.9.2",
     "hardhat": "^2.22.0"
   },
   "dependencies": {

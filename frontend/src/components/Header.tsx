@@ -1,4 +1,5 @@
 import { ConnectButton } from "./ConnectButton";
+import { ThemeToggle } from "./ThemeToggle";
 import { BrandMark } from "./Icons";
 
 export type Tab = "swap" | "pool" | "tokens";
@@ -21,7 +22,10 @@ export function Header({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
         ))}
       </nav>
 
-      <ConnectButton />
+      <div className="header-right">
+        <ThemeToggle />
+        <ConnectButton />
+      </div>
     </header>
   );
 }
