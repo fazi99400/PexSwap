@@ -1,9 +1,9 @@
 {
-  "name": "pexswap-frontend",
+  "name": "lifelox-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "PexSwap DEX interface — orange Uniswap-style UI for pexli-v2",
+  "description": "Lifelox DEX interface — orange Uniswap-style UI for pexli-v2",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

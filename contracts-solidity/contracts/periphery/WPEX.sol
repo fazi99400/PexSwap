@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 /// @title WPEX - Wrapped PEX, the ERC-20 wrapper for the native pexli-v2 coin.
-/// @notice Lets the native PEX coin be traded through PexSwap pairs like any PXC-20 token.
+/// @notice Lets the native PEX coin be traded through Lifelox pairs like any PXC-20 token.
 contract WPEX {
     string public constant name = "Wrapped PEX";
     string public constant symbol = "WPEX";

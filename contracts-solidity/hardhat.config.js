@@ -1,6 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 
-// PexSwap deploys to the pexli-v2 chain, which runs Rust + Solidity contracts in the
+// Lifelox deploys to the pexli-v2 chain, which runs Rust + Solidity contracts in the
 // same block. The EVM lane speaks standard eth_* JSON-RPC, so Hardhat works unchanged.
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 const PEXLI_RPC_URL = process.env.PEXLI_RPC_URL || "http://127.0.0.1:8545";

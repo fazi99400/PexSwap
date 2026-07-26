@@ -1,7 +1,7 @@
 {
-  "name": "pexswap-contracts-solidity",
+  "name": "lifelox-contracts-solidity",
   "version": "1.0.0",
-  "description": "PexSwap AMM core + periphery contracts for the pexli-v2 EVM lane",
+  "description": "Lifelox AMM core + periphery contracts for the pexli-v2 EVM lane",
   "license": "MIT",
   "scripts": {
     "build": "hardhat compile",

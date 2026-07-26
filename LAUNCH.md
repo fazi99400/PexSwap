@@ -1,4 +1,4 @@
-# 🚀 Launching PexSwap — no VPS, everything on GitHub
+# 🚀 Launching Lifelox — no VPS, everything on GitHub
 
 Two parts:
 
@@ -25,8 +25,8 @@ You need two things from your pexli-v2 network:
 
 ### A2. Deploy
 ```bash
-git clone https://github.com/fazi99400/PexSwap.git
-cd PexSwap/contracts-solidity
+git clone https://github.com/fazi99400/Lifelox.git
+cd Lifelox/contracts-solidity
 npm install
 
 export PEXLI_RPC_URL="https://your-pexli-rpc"     # from A1
@@ -42,8 +42,8 @@ prints a block like:
 ```
 VITE_PEXLI_CHAIN_ID=9042
 VITE_PEXLI_RPC_URL=https://your-pexli-rpc
-VITE_PEXSWAP_FACTORY=0x...
-VITE_PEXSWAP_ROUTER=0x...
+VITE_LIFELOX_FACTORY=0x...
+VITE_LIFELOX_ROUTER=0x...
 VITE_WPEX=0x...
 VITE_TOKEN_USDP=0x...
 VITE_TOKEN_PXLI=0x...
@@ -77,8 +77,8 @@ The site reads the contract addresses at build time. Add them once:
    |------|-------|
    | `VITE_PEXLI_CHAIN_ID` | e.g. `9042` |
    | `VITE_PEXLI_RPC_URL` | your HTTPS pexli RPC |
-   | `VITE_PEXSWAP_FACTORY` | `0x…` |
-   | `VITE_PEXSWAP_ROUTER` | `0x…` |
+   | `VITE_LIFELOX_FACTORY` | `0x…` |
+   | `VITE_LIFELOX_ROUTER` | `0x…` |
    | `VITE_WPEX` | `0x…` |
    | `VITE_TOKEN_USDP` | `0x…` |
    | `VITE_TOKEN_PXLI` | `0x…` |
@@ -87,12 +87,12 @@ The site reads the contract addresses at build time. Add them once:
 
 ### B3. Trigger the deploy
 Either push any change to `frontend/`, **or** run it manually:
-- Repo → **Actions** → **Deploy PexSwap frontend to GitHub Pages** → **Run workflow**.
+- Repo → **Actions** → **Deploy Lifelox frontend to GitHub Pages** → **Run workflow**.
 
 When it finishes (green ✓), your DEX is live at:
 
 ```
-https://fazi99400.github.io/PexSwap/
+https://fazi99400.github.io/Lifelox/
 ```
 
 That URL is public — share it. Anyone with a wallet (MetaMask) on the pexli-v2

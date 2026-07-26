@@ -1,4 +1,4 @@
-name: Deploy PexSwap frontend to GitHub Pages
+name: Deploy Lifelox frontend to GitHub Pages
 
 # Publishes frontend/ to GitHub Pages on every push to the working branch,
 # or manually via the "Run workflow" button. No server / VPS involved.
@@ -48,15 +48,15 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          # Base path must match the repository name, e.g. /PexSwap/
+          # Base path must match the repository name, e.g. /Lifelox/
           VITE_BASE: /${{ github.event.repository.name }}/
           # These come from repo Settings -> Secrets and variables -> Actions -> Variables.
           # Fill them in after you deploy the contracts (see LAUNCH.md).
           VITE_PEXLI_CHAIN_ID: ${{ vars.VITE_PEXLI_CHAIN_ID }}
           VITE_PEXLI_RPC_URL: ${{ vars.VITE_PEXLI_RPC_URL }}
           VITE_PEXLI_EXPLORER: ${{ vars.VITE_PEXLI_EXPLORER }}
-          VITE_PEXSWAP_FACTORY: ${{ vars.VITE_PEXSWAP_FACTORY }}
-          VITE_PEXSWAP_ROUTER: ${{ vars.VITE_PEXSWAP_ROUTER }}
+          VITE_LIFELOX_FACTORY: ${{ vars.VITE_LIFELOX_FACTORY }}
+          VITE_LIFELOX_ROUTER: ${{ vars.VITE_LIFELOX_ROUTER }}
           VITE_WPEX: ${{ vars.VITE_WPEX }}
           VITE_TOKEN_USDP: ${{ vars.VITE_TOKEN_USDP }}
           VITE_TOKEN_PXLI: ${{ vars.VITE_TOKEN_PXLI }}

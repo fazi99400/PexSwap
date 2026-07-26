@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./IPexSwapERC20.sol";
+import "./ILifeloxERC20.sol";
 
-/// @title IPexSwapPair - a constant-product (x*y=k) pool between two PXC-20 tokens
-interface IPexSwapPair is IPexSwapERC20 {
+/// @title ILifeloxPair - a constant-product (x*y=k) pool between two PXC-20 tokens
+interface ILifeloxPair is ILifeloxERC20 {
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
     event Swap(

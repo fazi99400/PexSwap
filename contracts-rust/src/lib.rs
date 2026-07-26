@@ -1,9 +1,9 @@
-//! PexSwap AMM — Rust lane for the pexli-v2 blockchain.
+//! Lifelox AMM — Rust lane for the pexli-v2 blockchain.
 //!
 //! A constant-product (x*y=k) automated market maker, economically identical to
-//! the Solidity `PexSwapPair`, but running as a native Rust contract inside the
+//! the Solidity `LifeloxPair`, but running as a native Rust contract inside the
 //! ZK-proven `execute_block`. Rust and Solidity contracts share one SMT state
-//! and settle in the same block, so PexSwap can route trades across tokens from
+//! and settle in the same block, so Lifelox can route trades across tokens from
 //! either lane.
 
 pub mod error;
@@ -12,8 +12,8 @@ pub mod math;
 pub mod processor;
 pub mod state;
 
-pub use error::PexSwapError;
-pub use instruction::PexSwapInstruction;
+pub use error::LifeloxError;
+pub use instruction::LifeloxInstruction;
 pub use state::{Pool, SwapResult};
 
 #[cfg(not(feature = "no-entrypoint"))]

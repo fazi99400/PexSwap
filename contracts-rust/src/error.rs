@@ -1,9 +1,9 @@
-//! Error codes returned by the PexSwap Rust program.
+//! Error codes returned by the Lifelox Rust program.
 
 use thiserror::Error;
 
 #[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PexSwapError {
+pub enum LifeloxError {
     #[error("pool already initialized")]
     AlreadyInitialized,
     #[error("pool not initialized")]
@@ -28,8 +28,8 @@ pub enum PexSwapError {
     Unauthorized,
 }
 
-impl From<PexSwapError> for u64 {
-    fn from(e: PexSwapError) -> u64 {
+impl From<LifeloxError> for u64 {
+    fn from(e: LifeloxError) -> u64 {
         e as u64
     }
 }

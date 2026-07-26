@@ -1,8 +1,8 @@
 [package]
-name = "pexswap-amm"
+name = "lifelox-amm"
 version = "1.0.0"
 edition = "2021"
-description = "PexSwap constant-product AMM for the pexli-v2 Rust lane (SBF, proven in ZK)"
+description = "Lifelox constant-product AMM for the pexli-v2 Rust lane (SBF, proven in ZK)"
 license = "MIT"
 
 [lib]

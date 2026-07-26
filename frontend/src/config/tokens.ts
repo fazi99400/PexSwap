@@ -1,4 +1,4 @@
-// PexSwap default token list. `lane` records whether a token's contract lives
+// Lifelox default token list. `lane` records whether a token's contract lives
 // on the Solidity (EVM) or Rust (SBF) side — both trade through the same UI
 // because pexli-v2 fuses them into one block with shared state.
 

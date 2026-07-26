@@ -1,4 +1,4 @@
-// Standalone deployer for the PexSwap stack — no Hardhat solc download needed.
+// Standalone deployer for the Lifelox stack — no Hardhat solc download needed.
 // Compiles with the bundled solc wasm and deploys over plain JSON-RPC with ethers.
 //
 // Usage:
@@ -57,8 +57,8 @@ async function main() {
 
   console.log("Deploying core + periphery…");
   const wpex = await deploy("WPEX");
-  const factory = await deploy("PexSwapFactory", [me]);
-  const router = await deploy("PexSwapRouter", [await factory.getAddress(), await wpex.getAddress()]);
+  const factory = await deploy("LifeloxFactory", [me]);
+  const router = await deploy("LifeloxRouter", [await factory.getAddress(), await wpex.getAddress()]);
 
   console.log("\nDeploying demo PXC-20 tokens…");
   const usdp = await deploy("PXC20Token", ["Pexli USD", "USDP", E(1_000_000)]);
@@ -68,8 +68,8 @@ async function main() {
     chainId: Number(net.chainId),
     rpc: RPC,
     WPEX: await wpex.getAddress(),
-    PexSwapFactory: await factory.getAddress(),
-    PexSwapRouter: await router.getAddress(),
+    LifeloxFactory: await factory.getAddress(),
+    LifeloxRouter: await router.getAddress(),
     USDP: await usdp.getAddress(),
     PXLI: await pxli.getAddress(),
     pairInitCodeHash: await factory.pairCodeHash(),
@@ -78,8 +78,8 @@ async function main() {
   if (SEED) {
     console.log("\nSeeding a demo USDP/PXLI pool…");
     const dl = Math.floor(Date.now() / 1000) + 1200;
-    await (await usdp.approve(addr.PexSwapRouter, ethers.MaxUint256, overrides)).wait();
-    await (await pxli.approve(addr.PexSwapRouter, ethers.MaxUint256, overrides)).wait();
+    await (await usdp.approve(addr.LifeloxRouter, ethers.MaxUint256, overrides)).wait();
+    await (await pxli.approve(addr.LifeloxRouter, ethers.MaxUint256, overrides)).wait();
     await (
       await router.addLiquidity(addr.USDP, addr.PXLI, E(10_000), E(40_000), 0, 0, me, dl, overrides)
     ).wait();
@@ -91,8 +91,8 @@ async function main() {
   console.log("\n=== Deployed. Copy this into frontend/.env (or GitHub Actions Variables) ===\n");
   console.log(`VITE_PEXLI_CHAIN_ID=${addr.chainId}`);
   console.log(`VITE_PEXLI_RPC_URL=${addr.rpc}`);
-  console.log(`VITE_PEXSWAP_FACTORY=${addr.PexSwapFactory}`);
-  console.log(`VITE_PEXSWAP_ROUTER=${addr.PexSwapRouter}`);
+  console.log(`VITE_LIFELOX_FACTORY=${addr.LifeloxFactory}`);
+  console.log(`VITE_LIFELOX_ROUTER=${addr.LifeloxRouter}`);
   console.log(`VITE_WPEX=${addr.WPEX}`);
   console.log(`VITE_TOKEN_USDP=${addr.USDP}`);
   console.log(`VITE_TOKEN_PXLI=${addr.PXLI}`);

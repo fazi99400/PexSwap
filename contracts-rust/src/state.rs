@@ -1,10 +1,10 @@
-//! On-chain account layouts for PexSwap pools, stored in the shared pexli SMT.
+//! On-chain account layouts for Lifelox pools, stored in the shared pexli SMT.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
 /// A single constant-product pool between `token0` and `token1`.
 ///
-/// The pool is a PDA derived from `["pexswap_pool", token0, token1]` so its
+/// The pool is a PDA derived from `["lifelox_pool", token0, token1]` so its
 /// address is deterministic and can be recomputed off-chain (like the Solidity
 /// factory's CREATE2 pairs). `token0 < token1` is enforced at init.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
@@ -31,7 +31,7 @@ pub struct Pool {
 }
 
 impl Pool {
-    pub const SEED_PREFIX: &'static [u8] = b"pexswap_pool";
+    pub const SEED_PREFIX: &'static [u8] = b"lifelox_pool";
     pub const VERSION: u8 = 1;
 
     /// Serialized size for account allocation.

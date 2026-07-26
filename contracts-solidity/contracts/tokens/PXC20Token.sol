@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "../core/interfaces/IPXC20.sol";
 
 /// @title PXC20Token - reference PXC-20 fungible token for the Solidity lane.
-/// @notice Mintable by the owner; use it to bootstrap PexSwap test pools.
+/// @notice Mintable by the owner; use it to bootstrap Lifelox test pools.
 contract PXC20Token is IPXC20 {
     string public name;
     string public symbol;

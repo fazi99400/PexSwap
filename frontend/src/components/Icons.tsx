@@ -148,10 +148,10 @@ export function IconLayers({ size = 18, className }: P) {
   );
 }
 
-/** PexSwap brandmark — an orange coin with a stylized "P". */
+/** Lifelox brandmark — an orange coin with a stylized "L". */
 export function BrandMark({ size = 34 }: P) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-label="PexSwap">
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-label="Lifelox">
       <defs>
         <linearGradient id="pex-brand" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#FFB35C" />
@@ -159,10 +159,7 @@ export function BrandMark({ size = 34 }: P) {
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="12" fill="url(#pex-brand)" />
-      <path
-        d="M14 11h8a6.5 6.5 0 0 1 0 13h-4v5h-4V11zm4 4v5h4a2.5 2.5 0 0 0 0-5h-4z"
-        fill="#fff"
-      />
+      <path d="M15 10h4.5v15H29v4H15V10z" fill="#fff" />
     </svg>
   );
 }

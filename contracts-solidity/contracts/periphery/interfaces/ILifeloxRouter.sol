@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IPexSwapRouter - user-facing entry point for swaps and liquidity.
-interface IPexSwapRouter {
+/// @title ILifeloxRouter - user-facing entry point for swaps and liquidity.
+interface ILifeloxRouter {
     function factory() external view returns (address);
     function WPEX() external view returns (address);
 

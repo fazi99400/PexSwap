@@ -4,7 +4,7 @@ import { IconSun, IconMoon } from "./Icons";
 type Theme = "dark" | "light";
 
 function getInitial(): Theme {
-  const saved = localStorage.getItem("pexswap-theme");
+  const saved = localStorage.getItem("lifelox-theme");
   if (saved === "light" || saved === "dark") return saved;
   return "dark";
 }
@@ -14,7 +14,7 @@ export function ThemeToggle() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("pexswap-theme", theme);
+    localStorage.setItem("lifelox-theme", theme);
   }, [theme]);
 
   return (

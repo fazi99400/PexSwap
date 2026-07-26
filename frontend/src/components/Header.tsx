@@ -10,7 +10,7 @@ export function Header({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
       <div className="brand">
         <BrandMark size={34} />
         <span>
-          Pex<span className="pex">Swap</span>
+          Life<span className="pex">lox</span>
         </span>
       </div>
 

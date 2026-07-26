@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IPexSwapERC20 - LP token interface for PexSwap pairs (PXC-20 compatible)
-interface IPexSwapERC20 {
+/// @title ILifeloxERC20 - LP token interface for Lifelox pairs (PXC-20 compatible)
+interface ILifeloxERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Transfer(address indexed from, address indexed to, uint256 value);
 

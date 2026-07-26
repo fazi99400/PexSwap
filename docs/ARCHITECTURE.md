@@ -1,6 +1,6 @@
-# PexSwap Architecture
+# Lifelox Architecture
 
-PexSwap is an automated market maker (AMM) built for **Pexli v2**, a dual-VM L1
+Lifelox is an automated market maker (AMM) built for **Pexli v2**, a dual-VM L1
 that executes Rust (SBF) and Solidity (EVM) smart contracts in the **same block**
 against a single Sparse Merkle Tree of state, with the whole state transition
 covered by ZK validity proofs.
@@ -13,22 +13,22 @@ a token from either lane.
 
 ## 1. Solidity lane (`contracts-solidity/`)
 
-A Uniswap-V2 fork, rebranded for PexSwap/PEX. Sources live under
+A Uniswap-V2 fork, rebranded for Lifelox/PEX. Sources live under
 `contracts-solidity/contracts/` (Hardhat's default source root):
 
 ```
 core/
-  PexSwapFactory.sol     deploys pairs via CREATE2, keeps the registry
-  PexSwapPair.sol        the x·y=k pool; mint / burn / swap / skim / sync
-  PexSwapERC20.sol       the LP token (PXC-20 + EIP-2612 permit)
+  LifeloxFactory.sol     deploys pairs via CREATE2, keeps the registry
+  LifeloxPair.sol        the x·y=k pool; mint / burn / swap / skim / sync
+  LifeloxERC20.sol       the LP token (PXC-20 + EIP-2612 permit)
   libraries/             Math (sqrt/min), UQ112x112 (price accumulators)
-  interfaces/            IPexSwapFactory, IPexSwapPair, IPXC20, IPexSwapCallee
+  interfaces/            ILifeloxFactory, ILifeloxPair, IPXC20, ILifeloxCallee
 
 periphery/
-  PexSwapRouter.sol      safe user entry: liquidity + all swap variants
+  LifeloxRouter.sol      safe user entry: liquidity + all swap variants
   WPEX.sol               wrapped native PEX (so PEX trades like a token)
-  libraries/PexSwapLibrary.sol   pure pricing + deterministic pairFor()
-  interfaces/            IPexSwapRouter, IWPEX
+  libraries/LifeloxLibrary.sol   pure pricing + deterministic pairFor()
+  interfaces/            ILifeloxRouter, IWPEX
 
 tokens/
   PXC20Token.sol         reference mintable PXC-20 for demos/tests
@@ -57,10 +57,10 @@ src/
   processor.rs    account handling + PXC-20 CPI (transfer / mint_to / burn)
   state.rs        Pool account layout (PDA-addressed), SwapResult
   math.rs         pure constant-product math (unit-tested, no_std-friendly)
-  error.rs        typed PexSwapError codes
+  error.rs        typed LifeloxError codes
 ```
 
-**Pool address.** A pool is a PDA from `["pexswap_pool", token0, token1]` with
+**Pool address.** A pool is a PDA from `["lifelox_pool", token0, token1]` with
 `token0 < token1` enforced — the Rust analogue of the Solidity CREATE2 pair, so
 `(A,B)` and `(B,A)` map to one pool.
 
@@ -69,7 +69,7 @@ enforces the fee-adjusted `k` non-decrease — a direct port of the Solidity
 `balanceAdjusted` K check.
 
 **Why the math matches.** `contracts-rust/src/math.rs` and
-`PexSwapLibrary.sol` implement `getAmountOut` / `getAmountIn` / `quote` with the
+`LifeloxLibrary.sol` implement `getAmountOut` / `getAmountIn` / `quote` with the
 same `997/1000` fee and rounding, so both lanes quote a trade identically. The
 Rust module has `cargo test` coverage proving fee application and in/out inverse
 behavior.

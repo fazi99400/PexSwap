@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./interfaces/IPexSwapERC20.sol";
+import "./interfaces/ILifeloxERC20.sol";
 
-/// @title PexSwapERC20 - the LP (liquidity provider) token minted by every PexSwap pair.
+/// @title LifeloxERC20 - the LP (liquidity provider) token minted by every Lifelox pair.
 /// @notice PXC-20 compatible with EIP-2612 permit for gasless approvals.
-contract PexSwapERC20 is IPexSwapERC20 {
-    string public constant name = "PexSwap LP Token";
-    string public constant symbol = "PEX-LP";
+contract LifeloxERC20 is ILifeloxERC20 {
+    string public constant name = "Lifelox LP Token";
+    string public constant symbol = "LIFE-LP";
     uint8 public constant decimals = 18;
 
     uint256 public totalSupply;
@@ -86,7 +86,7 @@ contract PexSwapERC20 is IPexSwapERC20 {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "PexSwap: EXPIRED");
+        require(deadline >= block.timestamp, "Lifelox: EXPIRED");
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -95,7 +95,7 @@ contract PexSwapERC20 is IPexSwapERC20 {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        require(recoveredAddress != address(0) && recoveredAddress == owner, "PexSwap: INVALID_SIGNATURE");
+        require(recoveredAddress != address(0) && recoveredAddress == owner, "Lifelox: INVALID_SIGNATURE");
         _approve(owner, spender, value);
     }
 }

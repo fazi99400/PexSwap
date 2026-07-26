@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./PexSwapERC20.sol";
+import "./LifeloxERC20.sol";
 import "./libraries/Math.sol";
 import "./libraries/UQ112x112.sol";
 import "./interfaces/IPXC20.sol";
-import "./interfaces/IPexSwapFactory.sol";
-import "./interfaces/IPexSwapCallee.sol";
+import "./interfaces/ILifeloxFactory.sol";
+import "./interfaces/ILifeloxCallee.sol";
 
-/// @title PexSwapPair - a single x*y=k constant-product pool for two PXC-20 tokens.
+/// @title LifeloxPair - a single x*y=k constant-product pool for two PXC-20 tokens.
 /// @notice Charges a 0.30% swap fee. Works with tokens from either the Solidity or
 ///         the Rust lane, since both expose the PXC-20 (ERC-20) ABI in the same block.
-contract PexSwapPair is PexSwapERC20 {
+contract LifeloxPair is LifeloxERC20 {
     using UQ112x112 for uint224;
 
     uint256 public constant MINIMUM_LIQUIDITY = 10**3;
@@ -43,7 +43,7 @@ contract PexSwapPair is PexSwapERC20 {
 
     uint256 private unlocked = 1;
     modifier lock() {
-        require(unlocked == 1, "PexSwap: LOCKED");
+        require(unlocked == 1, "Lifelox: LOCKED");
         unlocked = 0;
         _;
         unlocked = 1;
@@ -61,7 +61,7 @@ contract PexSwapPair is PexSwapERC20 {
 
     function _safeTransfer(address token, address to, uint256 value) private {
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "PexSwap: TRANSFER_FAILED");
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "Lifelox: TRANSFER_FAILED");
     }
 
     constructor() {
@@ -70,14 +70,14 @@ contract PexSwapPair is PexSwapERC20 {
 
     // called once by the factory at time of deployment
     function initialize(address _token0, address _token1) external {
-        require(msg.sender == factory, "PexSwap: FORBIDDEN");
+        require(msg.sender == factory, "Lifelox: FORBIDDEN");
         token0 = _token0;
         token1 = _token1;
     }
 
     // update reserves and, on the first call per block, price accumulators
     function _update(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
-        require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, "PexSwap: OVERFLOW");
+        require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, "Lifelox: OVERFLOW");
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
         unchecked {
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;
@@ -94,7 +94,7 @@ contract PexSwapPair is PexSwapERC20 {
 
     // if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
-        address feeTo = IPexSwapFactory(factory).feeTo();
+        address feeTo = ILifeloxFactory(factory).feeTo();
         feeOn = feeTo != address(0);
         uint256 _kLast = kLast;
         if (feeOn) {
@@ -129,7 +129,7 @@ contract PexSwapPair is PexSwapERC20 {
         } else {
             liquidity = Math.min((amount0 * _totalSupply) / _reserve0, (amount1 * _totalSupply) / _reserve1);
         }
-        require(liquidity > 0, "PexSwap: INSUFFICIENT_LIQUIDITY_MINTED");
+        require(liquidity > 0, "Lifelox: INSUFFICIENT_LIQUIDITY_MINTED");
         _mint(to, liquidity);
 
         _update(balance0, balance1, _reserve0, _reserve1);
@@ -150,7 +150,7 @@ contract PexSwapPair is PexSwapERC20 {
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         amount0 = (liquidity * balance0) / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = (liquidity * balance1) / _totalSupply;
-        require(amount0 > 0 && amount1 > 0, "PexSwap: INSUFFICIENT_LIQUIDITY_BURNED");
+        require(amount0 > 0 && amount1 > 0, "Lifelox: INSUFFICIENT_LIQUIDITY_BURNED");
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
@@ -164,32 +164,32 @@ contract PexSwapPair is PexSwapERC20 {
 
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external lock {
-        require(amount0Out > 0 || amount1Out > 0, "PexSwap: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(amount0Out > 0 || amount1Out > 0, "Lifelox: INSUFFICIENT_OUTPUT_AMOUNT");
         (uint112 _reserve0, uint112 _reserve1, ) = getReserves();
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, "PexSwap: INSUFFICIENT_LIQUIDITY");
+        require(amount0Out < _reserve0 && amount1Out < _reserve1, "Lifelox: INSUFFICIENT_LIQUIDITY");
 
         uint256 balance0;
         uint256 balance1;
         {
             address _token0 = token0;
             address _token1 = token1;
-            require(to != _token0 && to != _token1, "PexSwap: INVALID_TO");
+            require(to != _token0 && to != _token1, "Lifelox: INVALID_TO");
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
-            if (data.length > 0) IPexSwapCallee(to).pexSwapCall(msg.sender, amount0Out, amount1Out, data);
+            if (data.length > 0) ILifeloxCallee(to).lifeloxCall(msg.sender, amount0Out, amount1Out, data);
             balance0 = IPXC20(_token0).balanceOf(address(this));
             balance1 = IPXC20(_token1).balanceOf(address(this));
         }
         uint256 amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint256 amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
-        require(amount0In > 0 || amount1In > 0, "PexSwap: INSUFFICIENT_INPUT_AMOUNT");
+        require(amount0In > 0 || amount1In > 0, "Lifelox: INSUFFICIENT_INPUT_AMOUNT");
         {
             // 0.30% fee: adjusted balances must keep k non-decreasing
             uint256 balance0Adjusted = balance0 * 1000 - amount0In * 3;
             uint256 balance1Adjusted = balance1 * 1000 - amount1In * 3;
             require(
                 balance0Adjusted * balance1Adjusted >= uint256(_reserve0) * _reserve1 * (1000**2),
-                "PexSwap: K"
+                "Lifelox: K"
             );
         }
 

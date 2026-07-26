@@ -16,7 +16,7 @@ export default function App() {
         {tab === "tokens" && <Tokens />}
       </main>
       <footer className="footer">
-        PexSwap · a community DEX on the Pexli&nbsp;v2 blockchain · Rust + Solidity, fused in one block
+        Lifelox · a community DEX on the Pexli&nbsp;v2 blockchain · Rust + Solidity, fused in one block
       </footer>
     </div>
   );

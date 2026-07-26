@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./interfaces/IPexSwapFactory.sol";
-import "./PexSwapPair.sol";
+import "./interfaces/ILifeloxFactory.sol";
+import "./LifeloxPair.sol";
 
-/// @title PexSwapFactory - deploys deterministic PexSwap pairs and tracks the registry.
-contract PexSwapFactory is IPexSwapFactory {
+/// @title LifeloxFactory - deploys deterministic Lifelox pairs and tracks the registry.
+contract LifeloxFactory is ILifeloxFactory {
     address public feeTo;
     address public feeToSetter;
 
@@ -22,17 +22,17 @@ contract PexSwapFactory is IPexSwapFactory {
 
     /// @dev Deterministic address via CREATE2 so the router can compute pairs off-chain.
     function createPair(address tokenA, address tokenB) external returns (address pair) {
-        require(tokenA != tokenB, "PexSwap: IDENTICAL_ADDRESSES");
+        require(tokenA != tokenB, "Lifelox: IDENTICAL_ADDRESSES");
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), "PexSwap: ZERO_ADDRESS");
-        require(getPair[token0][token1] == address(0), "PexSwap: PAIR_EXISTS");
+        require(token0 != address(0), "Lifelox: ZERO_ADDRESS");
+        require(getPair[token0][token1] == address(0), "Lifelox: PAIR_EXISTS");
 
-        bytes memory bytecode = type(PexSwapPair).creationCode;
+        bytes memory bytecode = type(LifeloxPair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
-        PexSwapPair(pair).initialize(token0, token1);
+        LifeloxPair(pair).initialize(token0, token1);
 
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair; // populate mapping in the reverse direction
@@ -41,17 +41,17 @@ contract PexSwapFactory is IPexSwapFactory {
     }
 
     function setFeeTo(address _feeTo) external {
-        require(msg.sender == feeToSetter, "PexSwap: FORBIDDEN");
+        require(msg.sender == feeToSetter, "Lifelox: FORBIDDEN");
         feeTo = _feeTo;
     }
 
     function setFeeToSetter(address _feeToSetter) external {
-        require(msg.sender == feeToSetter, "PexSwap: FORBIDDEN");
+        require(msg.sender == feeToSetter, "Lifelox: FORBIDDEN");
         feeToSetter = _feeToSetter;
     }
 
     /// @notice Init code hash for off-chain CREATE2 pair address computation.
     function pairCodeHash() external pure returns (bytes32) {
-        return keccak256(type(PexSwapPair).creationCode);
+        return keccak256(type(LifeloxPair).creationCode);
     }
 }

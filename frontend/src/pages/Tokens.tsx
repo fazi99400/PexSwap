@@ -42,7 +42,7 @@ export function Tokens() {
       <div className="subtle modal-note">
         Because pexli-v2 executes Rust and Solidity contracts in the same block against one
         shared state tree, a pool can hold a Rust-lane token on one side and a Solidity-lane
-        token on the other. PexSwap treats them identically.
+        token on the other. Lifelox treats them identically.
       </div>
     </div>
   );

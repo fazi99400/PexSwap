@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IPexSwapFactory - deploys and tracks PexSwap trading pairs
-interface IPexSwapFactory {
+/// @title ILifeloxFactory - deploys and tracks Lifelox trading pairs
+interface ILifeloxFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
     function feeTo() external view returns (address);

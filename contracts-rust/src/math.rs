@@ -1,6 +1,6 @@
-//! Pure constant-product (x*y=k) math for PexSwap.
+//! Pure constant-product (x*y=k) math for Lifelox.
 //!
-//! Identical economics to the Solidity `PexSwapPair`: 0.30% swap fee, so a
+//! Identical economics to the Solidity `LifeloxPair`: 0.30% swap fee, so a
 //! Rust-lane pool and a Solidity-lane pool price a trade the same way.
 //! Everything here is `no_std`-friendly and unit-tested with `u128` intermediates
 //! to avoid overflow.

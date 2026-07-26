@@ -1,4 +1,4 @@
-// Compiles every PexSwap contract with the bundled solc wasm and returns
+// Compiles every Lifelox contract with the bundled solc wasm and returns
 // { [ContractName]: { abi, bytecode } }. No native solc / network needed.
 import { createRequire } from "node:module";
 import fs from "node:fs";

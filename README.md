@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🟠 PexSwap
+# 🟠 Lifelox
 
 ### A full decentralized exchange for the [Pexli&nbsp;v2](https://github.com/fazi99400/Fazi-Nom/tree/claude/pexli-v2-block-review-wxqbhh/pexli-v2) blockchain
 
@@ -18,13 +18,13 @@
 
 Pexli&nbsp;v2 is a dual-VM Layer-1 that executes **Rust (SBF) and Solidity (EVM)
 smart contracts in the same block**, against one shared Merkle state tree, with the
-whole state transition covered by ZK validity proofs. PexSwap is a constant-product
+whole state transition covered by ZK validity proofs. Lifelox is a constant-product
 (x·y=k) automated market maker built for exactly that: tokens from either lane trade
 through the same pools, because on this chain they settle together.
 
 ```
      Rust 🦀  ┐
-              ├──►  one fused pexli-v2 block  ──►  PexSwap pools  ──►  swap / LP
+              ├──►  one fused pexli-v2 block  ──►  Lifelox pools  ──►  swap / LP
   Solidity ⬦  ┘         (shared SMT state)
 ```
 
@@ -42,11 +42,11 @@ through the same pools, because on this chain they settle together.
 ## What's in the repo
 
 ```
-PexSwap/
-├── contracts-solidity/     EVM lane — a Uniswap-V2 fork, rebranded PexSwap/PEX
+Lifelox/
+├── contracts-solidity/     EVM lane — a Uniswap-V2 fork, rebranded Lifelox/PEX
 │   ├── contracts/
 │   │   ├── core/           Factory, Pair (x·y=k), LP token, libraries, interfaces
-│   │   ├── periphery/      Router (swaps + liquidity), WPEX, PexSwapLibrary
+│   │   ├── periphery/      Router (swaps + liquidity), WPEX, LifeloxLibrary
 │   │   └── tokens/         PXC20Token — reference fungible token
 │   ├── scripts/deploy.js   deploys the whole stack + demo tokens
 │   └── test/e2e.mjs        real in-memory-EVM end-to-end test (15 checks)

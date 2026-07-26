@@ -1,9 +1,9 @@
-//! Borsh-encoded instruction set for the PexSwap Rust program.
+//! Borsh-encoded instruction set for the Lifelox Rust program.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
-pub enum PexSwapInstruction {
+pub enum LifeloxInstruction {
     /// Create and initialize a new pool for (token0, token1).
     ///
     /// Accounts:
@@ -61,7 +61,7 @@ pub enum PexSwapInstruction {
     },
 }
 
-impl PexSwapInstruction {
+impl LifeloxInstruction {
     pub fn pack(&self) -> Vec<u8> {
         borsh::to_vec(self).expect("instruction serialization is infallible")
     }

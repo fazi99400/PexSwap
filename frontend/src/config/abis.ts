@@ -1,4 +1,4 @@
-// Minimal ABIs the PexSwap UI needs. Kept inline so the frontend has no build
+// Minimal ABIs the Lifelox UI needs. Kept inline so the frontend has no build
 // dependency on the Solidity artifacts.
 
 export const ERC20_ABI = [

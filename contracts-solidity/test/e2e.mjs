@@ -1,4 +1,4 @@
-// End-to-end test of the PexSwap stack on a real in-memory EVM (ganache).
+// End-to-end test of the Lifelox stack on a real in-memory EVM (ganache).
 // Deploys WPEX + Factory + Router + two PXC-20 tokens, then exercises:
 //   create pool, add liquidity, quote, swap (token+native), remove liquidity.
 // No mocks — every assertion runs against actual deployed bytecode.
@@ -52,8 +52,8 @@ async function main() {
 
   console.log("\nDeploying stack...");
   const wpex = await deploy("WPEX");
-  const factory = await deploy("PexSwapFactory", [me]);
-  const router = await deploy("PexSwapRouter", [await factory.getAddress(), await wpex.getAddress()]);
+  const factory = await deploy("LifeloxFactory", [me]);
+  const router = await deploy("LifeloxRouter", [await factory.getAddress(), await wpex.getAddress()]);
   const usdp = await deploy("PXC20Token", ["Pexli USD", "USDP", E(1_000_000)]);
   const pxli = await deploy("PXC20Token", ["Pexli Gold", "PXLI", E(1_000_000)]);
   console.log("  deployed WPEX / Factory / Router / USDP / PXLI");
@@ -80,7 +80,7 @@ async function main() {
   check("pool created (pair address set)", pairAddr !== ethers.ZeroAddress);
   check("allPairsLength == 1", (await factory.allPairsLength()) === 1n);
 
-  const pair = new ethers.Contract(pairAddr, art["PexSwapPair"].abi, wallet);
+  const pair = new ethers.Contract(pairAddr, art["LifeloxPair"].abi, wallet);
   check("LP tokens minted to provider", (await pair.balanceOf(me)) > 0n);
   const [r0, r1] = await pair.getReserves();
   check("reserves seeded", r0 > 0n && r1 > 0n);

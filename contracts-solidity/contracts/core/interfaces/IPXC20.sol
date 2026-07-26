@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /// @title IPXC20 - Pexli fungible token standard (ERC-20 compatible).
 /// @notice Both Solidity-lane and Rust-lane PXC-20 tokens expose this ABI on the EVM,
-///         so PexSwap can trade either kind through the same pair contracts.
+///         so Lifelox can trade either kind through the same pair contracts.
 interface IPXC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Transfer(address indexed from, address indexed to, uint256 value);
