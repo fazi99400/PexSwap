@@ -4,7 +4,7 @@ import { defineChain } from "viem";
 // against one shared SMT state, with ZK validity proofs. The EVM lane speaks
 // standard eth_* JSON-RPC, so viem/wagmi connect exactly like any EVM chain.
 export const PEXLI_CHAIN_ID = Number(
-  import.meta.env.VITE_PEXLI_CHAIN_ID ?? 9042
+  import.meta.env.VITE_PEXLI_CHAIN_ID ?? 78901
 );
 
 export const PEXLI_RPC_URL =

@@ -40,7 +40,7 @@ deploys **WPEX, Factory, Router** and two demo tokens, optionally seeds a pool, 
 prints a block like:
 
 ```
-VITE_PEXLI_CHAIN_ID=9042
+VITE_PEXLI_CHAIN_ID=78901
 VITE_PEXLI_RPC_URL=https://your-pexli-rpc
 VITE_LIFELOX_FACTORY=0x...
 VITE_LIFELOX_ROUTER=0x...
@@ -75,7 +75,7 @@ The site reads the contract addresses at build time. Add them once:
 
    | Name | Value |
    |------|-------|
-   | `VITE_PEXLI_CHAIN_ID` | e.g. `9042` |
+   | `VITE_PEXLI_CHAIN_ID` | e.g. `78901` |
    | `VITE_PEXLI_RPC_URL` | your HTTPS pexli RPC |
    | `VITE_LIFELOX_FACTORY` | `0x…` |
    | `VITE_LIFELOX_ROUTER` | `0x…` |

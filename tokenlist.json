@@ -1,0 +1,45 @@
+{
+  "name": "Lifelox Default",
+  "chainId": 78901,
+  "version": { "major": 1, "minor": 0, "patch": 0 },
+  "keywords": ["lifelox", "pexli", "dex", "pxc"],
+  "comment": "Shared by the Lifelox wallet and the Lifelox DEX. Solidity-lane tokens use `address`; Rust-lane tokens use a numeric `id` (state lives in the RUSTVM account). Fill 0x… addresses after deploying (deploy-standalone.mjs prints them).",
+  "tokens": [
+    {
+      "symbol": "PEX",
+      "name": "Pexli",
+      "lane": "solidity",
+      "standard": "native",
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "color": ["#FFB35C", "#FF6A00"]
+    },
+    {
+      "symbol": "WPEX",
+      "name": "Wrapped PEX",
+      "lane": "solidity",
+      "standard": "PXC-20",
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "color": ["#FFC27A", "#E85D00"]
+    },
+    {
+      "symbol": "USDP",
+      "name": "Pexli USD",
+      "lane": "solidity",
+      "standard": "PXC-20",
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "color": ["#4FE0A0", "#12A150"]
+    },
+    {
+      "symbol": "RGOLD",
+      "name": "Rust Gold",
+      "lane": "rust",
+      "standard": "PXC-20",
+      "id": 1,
+      "decimals": 8,
+      "color": ["#FFDE7A", "#E0A400"]
+    }
+  ]
+}

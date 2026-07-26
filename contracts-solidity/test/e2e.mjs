@@ -108,6 +108,17 @@ async function main() {
   await (await router.swapExactPEXForTokens(0, [W, A], me, dl, { ...TX, value: E(10) })).wait();
   check("swapped native PEX for USDP", (await usdp.balanceOf(me)) > usdpBeforePex);
 
+  console.log("\nTest: ETH-named aliases (wallet ABI: native = PEX)");
+  const usdpBeforeEth = await usdp.balanceOf(me);
+  await (await router.swapExactETHForTokens(0, [W, A], me, dl, { ...TX, value: E(10) })).wait();
+  check("swapExactETHForTokens works (PEX in)", (await usdp.balanceOf(me)) > usdpBeforeEth);
+
+  await (await usdp.approve(routerAddr, ethers.MaxUint256, TX)).wait();
+  const pexBeforeEth = await provider.getBalance(me);
+  const rcpt = await (await router.swapExactTokensForETH(E(50), 0, [A, W], me, dl, TX)).wait();
+  const gasCost = rcpt.gasUsed * rcpt.gasPrice;
+  check("swapExactTokensForETH returns native PEX", (await provider.getBalance(me)) + gasCost > pexBeforeEth);
+
   console.log("\nTest: remove liquidity");
   const lp = await pair.balanceOf(me);
   await (await pair.approve(routerAddr, lp, TX)).wait();

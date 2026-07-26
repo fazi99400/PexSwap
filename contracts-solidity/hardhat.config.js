@@ -16,7 +16,7 @@ module.exports = {
   networks: {
     pexliTestnet: {
       url: PEXLI_RPC_URL,
-      chainId: Number(process.env.PEXLI_CHAIN_ID || 9042),
+      chainId: Number(process.env.PEXLI_CHAIN_ID || 78901),
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
     localhost: {

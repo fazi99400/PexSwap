@@ -254,6 +254,72 @@ contract LifeloxRouter is ILifeloxRouter {
     }
 
     // ---------------------------------------------------------------------
+    // ETH-named aliases (native coin = PEX). These are the canonical Uniswap-V2
+    // names the Lifelox wallet's in-app Swap calls; on Pexli, "ETH" == PEX.
+    // ---------------------------------------------------------------------
+
+    function swapExactETHForTokens(
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[0] == WPEX, "LifeloxRouter: INVALID_PATH");
+        amounts = LifeloxLibrary.getAmountsOut(factory, initCodeHash, msg.value, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "LifeloxRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        IWPEX(WPEX).deposit{value: amounts[0]}();
+        assert(IWPEX(WPEX).transfer(LifeloxLibrary.pairFor(factory, path[0], path[1], initCodeHash), amounts[0]));
+        _swap(amounts, path, to);
+    }
+
+    function swapExactTokensForETH(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WPEX, "LifeloxRouter: INVALID_PATH");
+        amounts = LifeloxLibrary.getAmountsOut(factory, initCodeHash, amountIn, path);
+        require(amounts[amounts.length - 1] >= amountOutMin, "LifeloxRouter: INSUFFICIENT_OUTPUT_AMOUNT");
+        _safeTransferFrom(path[0], msg.sender, LifeloxLibrary.pairFor(factory, path[0], path[1], initCodeHash), amounts[0]);
+        _swap(amounts, path, address(this));
+        IWPEX(WPEX).withdraw(amounts[amounts.length - 1]);
+        _safeTransferPEX(to, amounts[amounts.length - 1]);
+    }
+
+    function swapETHForExactTokens(
+        uint256 amountOut,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external payable ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[0] == WPEX, "LifeloxRouter: INVALID_PATH");
+        amounts = LifeloxLibrary.getAmountsIn(factory, initCodeHash, amountOut, path);
+        require(amounts[0] <= msg.value, "LifeloxRouter: EXCESSIVE_INPUT_AMOUNT");
+        IWPEX(WPEX).deposit{value: amounts[0]}();
+        assert(IWPEX(WPEX).transfer(LifeloxLibrary.pairFor(factory, path[0], path[1], initCodeHash), amounts[0]));
+        _swap(amounts, path, to);
+        if (msg.value > amounts[0]) _safeTransferPEX(msg.sender, msg.value - amounts[0]);
+    }
+
+    function swapTokensForExactETH(
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external ensure(deadline) returns (uint256[] memory amounts) {
+        require(path[path.length - 1] == WPEX, "LifeloxRouter: INVALID_PATH");
+        amounts = LifeloxLibrary.getAmountsIn(factory, initCodeHash, amountOut, path);
+        require(amounts[0] <= amountInMax, "LifeloxRouter: EXCESSIVE_INPUT_AMOUNT");
+        _safeTransferFrom(path[0], msg.sender, LifeloxLibrary.pairFor(factory, path[0], path[1], initCodeHash), amounts[0]);
+        _swap(amounts, path, address(this));
+        IWPEX(WPEX).withdraw(amounts[amounts.length - 1]);
+        _safeTransferPEX(to, amounts[amounts.length - 1]);
+    }
+
+    // ---------------------------------------------------------------------
     // Views
     // ---------------------------------------------------------------------
 

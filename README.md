@@ -86,6 +86,22 @@ Lifelox/
 
 ---
 
+## Wallet integration
+
+Lifelox ships an SDK the **Lifelox Web3 wallet** (EIP-1193 + EIP-6963, rdns
+`xyz.lifelox.wallet`) uses to talk to the DEX — connect, read PXC balances on
+**both lanes**, and build swaps. See **[INTEGRATION.md](INTEGRATION.md)** and
+[`sdk/`](sdk). Highlights:
+
+- **EIP-6963 discovery** of the Lifelox provider (fallback `window.ethereum`),
+  connect + verify chain 78901.
+- **Rust-lane PXC tokens**: balance via `eth_getStorageAt` on the RUSTVM account
+  (`slot = keccak256(ns‖id‖holder)`) and transfers via op-coded calldata
+  (`op‖id‖to‖amount`) — encoders unit-tested against the documented layout.
+- **Router**: standard Uniswap-V2 ABI incl. `swapExactETHForTokens` /
+  `swapExactTokensForETH` (native = PEX) — tested on a real EVM.
+- **Shared [`tokenlist.json`](tokenlist.json)** used by wallet and DEX.
+
 ## Tech used
 
 | Area | Stack |
@@ -158,7 +174,7 @@ cd contracts-solidity
 npm install
 export PRIVATE_KEY=0x...                 # a funded pexli-v2 key
 export PEXLI_RPC_URL=http://127.0.0.1:8545
-export PEXLI_CHAIN_ID=9042
+export PEXLI_CHAIN_ID=78901
 npm run deploy:testnet                    # prints Factory / Router / WPEX + demo tokens
 ```
 
@@ -171,7 +187,7 @@ npm install
 npm run dev                               # http://localhost:5173
 ```
 
-Add the network to MetaMask — RPC `http://127.0.0.1:8545`, Chain ID `9042`, symbol
+Add the network to MetaMask — RPC `http://127.0.0.1:8545`, Chain ID `78901`, symbol
 **PEX** — or just use the in-app **Switch to Pexli v2** button.
 
 ---
