@@ -10,6 +10,29 @@ key**, and this GitHub repo.
 
 ---
 
+## The Lifelox web setup (two repos, one brand)
+
+Lifelox is **two independent repos** under one domain — the DEX and the wallet
+stay separate and each deploys its own GitHub Pages site:
+
+```
+  lifelox.xyz            →  this repo (Lifelox DEX)          — Swap / Pool / Tokens
+  wallet.lifelox.xyz     →  the Lifelox wallet repo (separate) — browser extension's web pages
+```
+
+They connect at runtime, no shared code deploy needed:
+
+- The **Lifelox wallet** is a **browser extension** that announces itself via
+  **EIP-6963** (`rdns xyz.lifelox.wallet`) and injects `window.ethereum`.
+- The **DEX** discovers it (the Connect button prefers the Lifelox provider) and
+  builds transactions with **`@lifelox/dex-sdk`** (this repo's `sdk/`). The wallet
+  can import that same SDK for its in-app Swap — see [INTEGRATION.md](INTEGRATION.md).
+
+So: edit the DEX here, edit the wallet in its own repo, and the EIP-6963 + SDK
+contract keeps them working together. This guide covers the **DEX** side.
+
+---
+
 ## Part A — Deploy the contracts to pexli-v2
 
 ### A1. Get the chain's RPC and a funded key
@@ -89,14 +112,33 @@ The site reads the contract addresses at build time. Add them once:
 Either push any change to `frontend/`, **or** run it manually:
 - Repo → **Actions** → **Deploy Lifelox frontend to GitHub Pages** → **Run workflow**.
 
-When it finishes (green ✓), your DEX is live at:
+When it finishes (green ✓), the DEX is served on the apex domain (see B4):
 
 ```
-https://fazi99400.github.io/Lifelox/
+https://lifelox.xyz
 ```
 
-That URL is public — share it. Anyone with a wallet (MetaMask) on the pexli-v2
-network can swap and provide liquidity.
+### B4. Custom domain — lifelox.xyz
+`frontend/public/CNAME` already contains `lifelox.xyz`, so the Pages build claims
+the apex domain. Point DNS at GitHub Pages once, at your registrar:
+
+| Type | Host | Value |
+|------|------|-------|
+| A | `@` | `185.199.108.153` |
+| A | `@` | `185.199.109.153` |
+| A | `@` | `185.199.110.153` |
+| A | `@` | `185.199.111.153` |
+| CNAME | `www` | `fazi99400.github.io` |
+
+Then repo → **Settings → Pages → Custom domain** → enter `lifelox.xyz` → **Save**,
+and tick **Enforce HTTPS** once the certificate is issued (a few minutes).
+
+> Because it's served from the apex root, the build uses base `/` (the workflow
+> sets `VITE_BASE=/`). If you ever drop the custom domain, change it back to
+> `/<repo>/`.
+
+The DEX is now public at **https://lifelox.xyz** — anyone with the Lifelox wallet
+extension on Pexli can swap and provide liquidity.
 
 ---
 

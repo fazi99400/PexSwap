@@ -48,8 +48,9 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          # Base path must match the repository name, e.g. /Lifelox/
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # Served from the apex custom domain lifelox.xyz (see frontend/public/CNAME),
+          # so the base is "/". Without a custom domain, set this to /<repo>/ instead.
+          VITE_BASE: /
           # These come from repo Settings -> Secrets and variables -> Actions -> Variables.
           # Fill them in after you deploy the contracts (see LAUNCH.md).
           VITE_PEXLI_CHAIN_ID: ${{ vars.VITE_PEXLI_CHAIN_ID }}
