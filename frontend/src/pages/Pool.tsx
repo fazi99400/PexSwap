@@ -8,6 +8,7 @@ import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
+import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, IconChevron, IconPlus, IconLayers } from "../components/Icons";
 import { usePools, PoolInfo } from "../hooks/usePools";
 
@@ -98,6 +99,7 @@ function PoolRow({ p }: { p: PoolInfo }) {
 function NewPosition() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { tokens: allTokens, importToken } = useTokenList();
 
   const [tokenA, setTokenA] = useState<Token>(NATIVE_PEX);
   const [tokenB, setTokenB] = useState<Token>(DEFAULT_TOKENS[2]);
@@ -281,7 +283,8 @@ function NewPosition() {
 
       {picking && (
         <TokenModal
-          tokens={DEFAULT_TOKENS.filter((t) => (picking === "a" ? t.symbol !== tokenB.symbol : t.symbol !== tokenA.symbol))}
+          tokens={allTokens.filter((t) => (picking === "a" ? t.address !== tokenB.address : t.address !== tokenA.address))}
+          onImport={importToken}
           onClose={() => setPicking(null)}
           onSelect={(t) => {
             if (picking === "a") setTokenA(t);

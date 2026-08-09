@@ -11,6 +11,7 @@ import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
+import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, LaneMark, IconChevron, IconArrowDown, IconSettings } from "../components/Icons";
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
@@ -20,6 +21,7 @@ const pathAddr = (t: Token) => (isNative(t) ? ADDRESSES.wpex : t.address);
 export function Swap() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { tokens: allTokens, importToken } = useTokenList();
 
   const [tokenIn, setTokenIn] = useState<Token>(NATIVE_PEX);
   const [tokenOut, setTokenOut] = useState<Token>(DEFAULT_TOKENS[2]);
@@ -217,9 +219,10 @@ export function Swap() {
 
       {picking && (
         <TokenModal
-          tokens={DEFAULT_TOKENS.filter((t) =>
-            picking === "in" ? t.symbol !== tokenOut.symbol : t.symbol !== tokenIn.symbol
+          tokens={allTokens.filter((t) =>
+            picking === "in" ? t.address !== tokenOut.address : t.address !== tokenIn.address
           )}
+          onImport={importToken}
           onClose={() => setPicking(null)}
           onSelect={(t) => {
             if (picking === "in") setTokenIn(t);
