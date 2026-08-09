@@ -8,6 +8,9 @@ export interface PoolInfo {
   pair: `0x${string}`;
   token0?: Token & { addr: `0x${string}` };
   token1?: Token & { addr: `0x${string}` };
+  /** Raw on-chain addresses, present even for tokens not in the default list. */
+  token0Addr?: `0x${string}`;
+  token1Addr?: `0x${string}`;
   reserve0: bigint;
   reserve1: bigint;
   totalSupply: bigint;
@@ -76,6 +79,8 @@ export function usePools(account?: `0x${string}`) {
         pair: pairs[i],
         token0: findToken(t0),
         token1: findToken(t1),
+        token0Addr: t0 as `0x${string}` | undefined,
+        token1Addr: t1 as `0x${string}` | undefined,
         reserve0: res?.[0] ?? 0n,
         reserve1: res?.[1] ?? 0n,
         totalSupply: ts ?? 0n,

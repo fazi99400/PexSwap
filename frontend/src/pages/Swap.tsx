@@ -6,7 +6,7 @@ import {
   useBalance,
 } from "wagmi";
 import { maxUint256 } from "viem";
-import { DEFAULT_TOKENS, NATIVE_PEX, Token } from "../config/tokens";
+import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
 import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
@@ -24,7 +24,7 @@ export function Swap() {
   const { tokens: allTokens, importToken } = useTokenList();
 
   const [tokenIn, setTokenIn] = useState<Token>(NATIVE_PEX);
-  const [tokenOut, setTokenOut] = useState<Token>(DEFAULT_TOKENS[2]);
+  const [tokenOut, setTokenOut] = useState<Token>(SECOND_TOKEN);
   const [amountIn, setAmountIn] = useState("");
   const [picking, setPicking] = useState<null | "in" | "out">(null);
   const [status, setStatus] = useState<{ ok?: string; err?: string }>({});

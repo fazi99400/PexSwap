@@ -3,7 +3,7 @@ import { useAccount, useWriteContract, useReadContract, useReadContracts } from 
 import { readContract } from "wagmi/actions";
 import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
-import { DEFAULT_TOKENS, NATIVE_PEX, Token } from "../config/tokens";
+import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
 import { ADDRESSES } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
@@ -102,7 +102,7 @@ function NewPosition() {
   const { tokens: allTokens, importToken } = useTokenList();
 
   const [tokenA, setTokenA] = useState<Token>(NATIVE_PEX);
-  const [tokenB, setTokenB] = useState<Token>(DEFAULT_TOKENS[2]);
+  const [tokenB, setTokenB] = useState<Token>(SECOND_TOKEN);
   const [amtA, setAmtA] = useState("");
   const [amtB, setAmtB] = useState("");
   const [picking, setPicking] = useState<null | "a" | "b">(null);
