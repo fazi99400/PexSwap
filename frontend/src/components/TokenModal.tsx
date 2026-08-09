@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
-import { isAddress, type Address } from "viem";
-import { useReadContracts } from "wagmi";
+import { isAddress, getAddress, type Address } from "viem";
+import { useReadContracts, usePublicClient } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
 import { Token } from "../config/tokens";
 import { ERC20_ABI } from "../config/abis";
 import { colorForAddress } from "../hooks/useTokenList";
-import { isRustId, rustIdToAddress } from "../lib/rustId";
+import { isRustId, adminSlot, balanceSlot, RUSTVM_ADDRESS, RUST_NAMESPACES } from "../lib/rustvm";
 import { TokenIcon, LaneMark, IconClose } from "./Icons";
+
+// A rust token has no real contract; we key it in the UI by its id encoded as an
+// address so it stays unique and de-dupes cleanly.
+const rustKey = (id: bigint): Address => getAddress(("0x" + id.toString(16).padStart(40, "0")) as Address);
 
 export function TokenModal({
   tokens,
@@ -16,51 +21,66 @@ export function TokenModal({
   tokens: Token[];
   onSelect: (t: Token) => void;
   onClose: () => void;
-  /** Called when the user imports a new token by address or rust id. */
   onImport?: (t: Token) => void;
 }) {
   const [query, setQuery] = useState("");
   const q = query.trim();
+  const publicClient = usePublicClient();
 
-  // Solidity token = 0x address; Rust token = numeric id (mapped to its address).
+  const evmAddr: Address | undefined = isAddress(q) ? (q as Address) : undefined;
   const rustMode = isRustId(q);
-  const lookupAddr: Address | undefined = isAddress(q)
-    ? (q as Address)
-    : rustMode
-    ? rustIdToAddress(BigInt(q))
-    : undefined;
+  const rustId = rustMode ? BigInt(q) : undefined;
+  const key = evmAddr ?? (rustId !== undefined ? rustKey(rustId) : undefined);
+  const alreadyListed = !!key && tokens.some((t) => t.address.toLowerCase() === key.toLowerCase());
 
-  const alreadyListed =
-    !!lookupAddr && tokens.some((t) => t.address.toLowerCase() === lookupAddr.toLowerCase());
-
-  // Read metadata (works for both lanes — PXC-20 exposes the ERC-20 ABI on the EVM).
-  const { data: meta, isLoading } = useReadContracts({
+  // ---- Solidity path: read PXC-20 (ERC-20 ABI) metadata over eth_call ----
+  const { data: meta, isLoading: evmLoading } = useReadContracts({
     contracts: [
-      { address: lookupAddr, abi: ERC20_ABI, functionName: "symbol" },
-      { address: lookupAddr, abi: ERC20_ABI, functionName: "decimals" },
-      { address: lookupAddr, abi: ERC20_ABI, functionName: "name" },
+      { address: evmAddr, abi: ERC20_ABI, functionName: "symbol" },
+      { address: evmAddr, abi: ERC20_ABI, functionName: "decimals" },
+      { address: evmAddr, abi: ERC20_ABI, functionName: "name" },
     ],
-    query: { enabled: !!lookupAddr && !alreadyListed },
+    query: { enabled: !!evmAddr && !alreadyListed },
+  });
+
+  // ---- Rust path: prove the id exists from admin_slot at RUSTVM (no 0x contract) ----
+  const { data: rust, isLoading: rustLoading } = useQuery({
+    queryKey: ["rust-detect", q],
+    enabled: rustMode && !alreadyListed && !!publicClient,
+    queryFn: async () => {
+      for (const { ns, label } of RUST_NAMESPACES) {
+        const word = await publicClient!.getStorageAt({ address: RUSTVM_ADDRESS, slot: adminSlot(ns, rustId!) });
+        if (word && word !== "0x" && BigInt(word) !== 0n) return { ns, label };
+      }
+      return null;
+    },
   });
 
   const candidate: Token | undefined = useMemo(() => {
-    if (!lookupAddr || alreadyListed || !meta) return undefined;
-    const symbol = meta[0]?.result as string | undefined;
-    const decimals = meta[1]?.result as number | undefined;
-    const name = (meta[2]?.result as string | undefined) ?? symbol;
-    if (!symbol || decimals === undefined) return undefined;
-    return {
-      address: lookupAddr,
-      symbol,
-      name: name ?? symbol,
-      decimals,
-      lane: rustMode ? "rust" : "solidity",
-      id: rustMode ? Number(q) : undefined,
-      color: colorForAddress(lookupAddr),
-    };
-  }, [lookupAddr, alreadyListed, meta, q, rustMode]);
+    if (alreadyListed || !key) return undefined;
+    if (evmAddr && meta) {
+      const symbol = meta[0]?.result as string | undefined;
+      const decimals = meta[1]?.result as number | undefined;
+      const name = (meta[2]?.result as string | undefined) ?? symbol;
+      if (!symbol || decimals === undefined) return undefined;
+      return { address: evmAddr, symbol, name: name ?? symbol, decimals, lane: "solidity", color: colorForAddress(evmAddr) };
+    }
+    if (rustMode && rust) {
+      return {
+        address: key,
+        symbol: `PXC #${q}`,
+        name: `Rust ${rust.label} #${q}`,
+        decimals: 0,
+        lane: "rust",
+        id: Number(q),
+        color: colorForAddress(key),
+      };
+    }
+    return undefined;
+  }, [alreadyListed, key, evmAddr, meta, rustMode, rust, q]);
 
-  const searching = isAddress(q) || rustMode;
+  const searching = !!evmAddr || rustMode;
+  const isLoading = evmLoading || rustLoading;
 
   const filtered = useMemo(() => {
     if (!q || searching) return tokens;
@@ -100,7 +120,7 @@ export function TokenModal({
         <div className="token-scroll">
           {searching && !alreadyListed && (
             <>
-              {isLoading && <div className="subtle import-hint">Looking up token…</div>}
+              {isLoading && <div className="subtle import-hint">Looking up token on-chain…</div>}
               {candidate && (
                 <div className="token-row import-row">
                   <TokenIcon token={candidate} size={34} />
@@ -108,7 +128,7 @@ export function TokenModal({
                     <div className="sym">
                       {candidate.symbol}
                       <span className={`lane-badge lane-${candidate.lane}`}>
-                        <LaneMark lane={candidate.lane} /> {rustMode ? `rust · id ${q}` : "imported"}
+                        <LaneMark lane={candidate.lane} /> {candidate.lane === "rust" ? `rust · id ${q}` : "imported"}
                       </span>
                     </div>
                     <div className="nm">{candidate.name}</div>
@@ -121,7 +141,7 @@ export function TokenModal({
               {!isLoading && !candidate && (
                 <div className="subtle import-hint">
                   {rustMode
-                    ? `No PXC-20 token found for rust id ${q}.`
+                    ? `No Rust-lane token minted at id ${q} (checked PXC-20 & PXC-1155).`
                     : "No PXC-20 token found at that address on Pexli."}
                 </div>
               )}
@@ -149,7 +169,7 @@ export function TokenModal({
         </div>
 
         <div className="subtle modal-note">
-          Solidity token = 0x address · Rust token = numeric id. Both are PXC-20 and pair with PEX.
+          Solidity token = 0x address · Rust token = numeric id (read from RUSTVM). Both are PXC-20.
         </div>
       </div>
     </div>
