@@ -56,11 +56,18 @@ export function removeImportedToken(address: string) {
   emit();
 }
 
-/** All selectable tokens: built-in defaults + anything the user imported. */
+/** All selectable tokens: built-in defaults + anything the user imported,
+ *  de-duplicated by address (defaults win, so a token that later becomes a
+ *  default no longer shows twice). */
 export function useTokenList(): { tokens: Token[]; imported: Token[]; importToken: (t: Token) => void } {
   const importedTokens = useSyncExternalStore(subscribe, () => imported, () => imported);
+  const byAddress = new Map<string, Token>();
+  for (const t of [...DEFAULT_TOKENS, ...importedTokens]) {
+    const key = t.address.toLowerCase();
+    if (!byAddress.has(key)) byAddress.set(key, t);
+  }
   return {
-    tokens: [...DEFAULT_TOKENS, ...importedTokens],
+    tokens: [...byAddress.values()],
     imported: importedTokens,
     importToken: addImportedToken,
   };
