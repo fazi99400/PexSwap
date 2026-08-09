@@ -1,6 +1,6 @@
 import { useAccount, useConnect, useConnectors, useDisconnect, useSwitchChain, useChainId } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { pexli } from "../config/chain";
+import { pexli, PEXLI_RPC_URL } from "../config/chain";
 import { shortAddr } from "../lib/format";
 import { IconWallet } from "./Icons";
 
@@ -8,11 +8,11 @@ import { IconWallet } from "./Icons";
 const LIFELOX_RDNS = "xyz.lifelox.wallet";
 
 export function ConnectButton() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { connect } = useConnect();
   const connectors = useConnectors();
   const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
   const chainId = useChainId();
 
   // Prefer the Lifelox extension (EIP-6963), fall back to any injected wallet.
@@ -21,6 +21,30 @@ export function ConnectButton() {
       (c) => c.id === LIFELOX_RDNS || c.name.toLowerCase() === "lifelox"
     );
     connect({ connector: lifelox ?? injected() });
+  }
+
+  // Add Pexli to the wallet (so the native coin shows as PEX, not ETH) and switch.
+  async function addAndSwitchPexli() {
+    try {
+      await switchChainAsync({ chainId: pexli.id });
+    } catch {
+      // Unknown chain — add it explicitly, then it becomes the active network.
+      const provider = (await connector?.getProvider()) as
+        | { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> }
+        | undefined;
+      await provider?.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: "0x" + pexli.id.toString(16),
+            chainName: "Pexli",
+            nativeCurrency: { name: "Pexli", symbol: "PEX", decimals: 18 },
+            rpcUrls: [PEXLI_RPC_URL],
+            blockExplorerUrls: [pexli.blockExplorers?.default.url].filter(Boolean),
+          },
+        ],
+      });
+    }
   }
 
   if (!isConnected) {
@@ -33,8 +57,8 @@ export function ConnectButton() {
 
   if (chainId !== pexli.id) {
     return (
-      <button className="btn btn-primary" style={{ width: "auto" }} onClick={() => switchChain({ chainId: pexli.id })}>
-        Switch to Pexli
+      <button className="btn btn-primary" style={{ width: "auto" }} onClick={addAndSwitchPexli}>
+        Add / Switch to Pexli
       </button>
     );
   }
