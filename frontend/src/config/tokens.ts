@@ -11,6 +11,8 @@ export interface Token {
   name: string;
   decimals: number;
   lane: Lane;
+  /** Rust-lane tokens are addressed by a numeric id; kept for reference. */
+  id?: number;
   /** Gradient stops [from, to] used to render the coin's SVG icon. */
   color: [string, string];
 }

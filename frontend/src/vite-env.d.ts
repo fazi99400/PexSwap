@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_LIFELOX_RUST_PROGRAM?: string;
   readonly VITE_TOKEN_USDP?: string;
   readonly VITE_TOKEN_PXLI?: string;
+  readonly VITE_RUST_ADDR_PREFIX?: string;
 }
 
 interface ImportMeta {
