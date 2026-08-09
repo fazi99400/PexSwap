@@ -102,6 +102,17 @@ Lifelox ships an SDK the **Lifelox Web3 wallet** (EIP-1193 + EIP-6963, rdns
   `swapExactTokensForETH` (native = PEX) — tested on a real EVM.
 - **Shared [`tokenlist.json`](tokenlist.json)** used by wallet and DEX.
 
+## Cross-lane pools (Rust ↔ Solidity)
+
+Rust-lane PXC tokens (a numeric id, no contract) can be pooled with Solidity
+tokens through the chain's **bridge precompile** (`0x…0e13`). The dual-lane AMM —
+`LifeloxDualFactory` / `LifeloxDualPair` / `LifeloxDualRouter` in
+[`contracts-solidity/contracts/dual/`](contracts-solidity/contracts/dual) — reads
+and moves each side through its own lane (ERC-20 or the bridge). Because the Rust
+lane has no `approve`, it uses the V2 "transfer in, then call" pattern. Full guide,
+constraints (u64 amounts, no events, 6–8 decimals), and the on-chain test flow:
+**[docs/RUST-POOLS.md](docs/RUST-POOLS.md)**.
+
 ## Tech used
 
 | Area | Stack |

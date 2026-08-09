@@ -7,6 +7,8 @@
     "build": "hardhat compile",
     "test": "node test/e2e.mjs",
     "deploy": "node scripts/deploy-standalone.mjs",
+    "deploy:dual": "node scripts/deploy-dual.mjs",
+    "bridge:check": "node test/dual-bridge-check.mjs",
     "deploy:testnet": "hardhat run scripts/deploy.js --network pexliTestnet",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost"
   },
