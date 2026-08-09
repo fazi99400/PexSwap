@@ -15,40 +15,50 @@ export function Tokens() {
   const { tokens } = useTokenList();
   const { pools } = usePools(address);
 
-  // Price of each token expressed in PEX, derived from its token/PEX pool reserves.
-  const priceInPex = useMemo(() => {
-    const map = new Map<string, number>();
-    const decimalsOf = (addr?: string) =>
-      tokens.find((t) => t.address.toLowerCase() === addr?.toLowerCase())?.decimals ?? 18;
+  // Price of each token in terms of whatever it is pooled against — PEX if a PEX
+  // pool exists, otherwise the token on the other side of its pool.
+  const priceInfo = useMemo(() => {
+    const map = new Map<string, { price: number; symbol: string }>();
+    const meta = (addr?: string) => tokens.find((t) => t.address.toLowerCase() === addr?.toLowerCase());
 
-    for (const p of pools) {
-      const a0 = p.token0Addr?.toLowerCase();
-      const a1 = p.token1Addr?.toLowerCase();
-      if (p.reserve0 === 0n || p.reserve1 === 0n) continue;
+    for (const t of tokens) {
+      const tl = t.address.toLowerCase();
+      const cands = pools.filter(
+        (p) =>
+          p.reserve0 > 0n &&
+          p.reserve1 > 0n &&
+          (p.token0Addr?.toLowerCase() === tl || p.token1Addr?.toLowerCase() === tl)
+      );
+      if (!cands.length) continue;
 
-      let otherAddr: string | undefined;
-      let pexReserve: bigint | undefined;
-      let otherReserve: bigint | undefined;
-      if (a0 === wpex) {
-        otherAddr = a1; pexReserve = p.reserve0; otherReserve = p.reserve1;
-      } else if (a1 === wpex) {
-        otherAddr = a0; pexReserve = p.reserve1; otherReserve = p.reserve0;
-      }
-      if (!otherAddr || !pexReserve || !otherReserve) continue;
+      // Prefer a pool paired with PEX (WPEX); else use the first pool found.
+      const pick =
+        cands.find((p) => p.token0Addr?.toLowerCase() === wpex || p.token1Addr?.toLowerCase() === wpex) ??
+        cands[0];
 
-      const pex = Number(formatUnits(pexReserve, 18));
-      const other = Number(formatUnits(otherReserve, decimalsOf(otherAddr)));
-      if (other > 0) map.set(otherAddr, pex / other);
+      const thisIs0 = pick.token0Addr?.toLowerCase() === tl;
+      const thisReserve = thisIs0 ? pick.reserve0 : pick.reserve1;
+      const otherReserve = thisIs0 ? pick.reserve1 : pick.reserve0;
+      const otherAddr = thisIs0 ? pick.token1Addr : pick.token0Addr;
+
+      const om = meta(otherAddr);
+      const otherDec = om?.decimals ?? 18;
+      let otherSym = om?.symbol ?? "?";
+      if (otherAddr?.toLowerCase() === wpex || otherSym === "WPEX") otherSym = "PEX";
+
+      const thisAmt = Number(formatUnits(thisReserve, t.decimals));
+      const otherAmt = Number(formatUnits(otherReserve, otherDec));
+      if (thisAmt > 0) map.set(tl, { price: otherAmt / thisAmt, symbol: otherSym });
     }
     return map;
   }, [pools, tokens]);
 
   function priceLabel(addr: string): string {
     const lower = addr.toLowerCase();
-    if (addr === NATIVE_PEX.address || lower === wpex) return "1 PEX";
-    const p = priceInPex.get(lower);
-    if (!p) return "—";
-    return `${p.toLocaleString(undefined, { maximumSignificantDigits: 6 })} PEX`;
+    if (addr === NATIVE_PEX.address || lower === wpex) return "—";
+    const info = priceInfo.get(lower);
+    if (!info) return "—";
+    return `${info.price.toLocaleString(undefined, { maximumSignificantDigits: 6 })} ${info.symbol}`;
   }
 
   return (
