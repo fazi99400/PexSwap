@@ -44,6 +44,21 @@ uses the V2 "**transfer in, then call**" pattern:
 2. Call `router.swapExactInput(...)` — it `transferFrom`s the input to the pair and
    the pair pays out the Rust side via `0xA0`.
 
+## In the interface
+
+- **Importing a rust token** (`frontend/src/lib/rustvm.ts`): typing a numeric id in the
+  token picker does two reads — the RUSTVM admin slot proves the id is minted, and the
+  bridge returns its **name, symbol and decimals**, so a rust id resolves to a real
+  ticker exactly like a `0x` address resolves through ERC-20 `name()/symbol()/decimals()`.
+  With no metadata on the id it falls back to `PXC #id` / decimals 0.
+- **Pools are global** (`frontend/src/hooks/usePools.ts`): the Positions list and the
+  Tokens table are built from `allPairs` on the factories, so a pool **anyone** creates
+  is visible to **everyone**. Sides that are not in the built-in token list are hydrated
+  on the fly (ERC-20 reads for Solidity, the bridge for Rust) and published into the
+  shared token list, so those tokens also appear in every picker without an import.
+  Set `VITE_LIFELOX_DUAL_FACTORY` to include cross-lane pools in that list; the EVM-lane
+  swap/add-liquidity forms refuse a Rust side rather than sending a doomed transaction.
+
 ## Deploy
 
 ```bash
@@ -73,6 +88,7 @@ into a pair, add the Solidity side, swap, read reserves).
 | **Rust amounts are `u64`** | `PxcBridge.transfer20` reverts if `amount > 2^64-1`. With 18 decimals a u64 caps at ~18 whole tokens — **use 6–8 decimals** for Rust tokens. |
 | **No events on the Rust lane** | `eth_getLogs` never sees a Rust transfer. Pool discovery / balances must **read state**, not watch logs. |
 | **Metadata is optional & write-once** | Absent metadata reads as empty name/symbol, decimals 0. Fall back to `PXC #id`; never render an empty symbol as real. |
+| **Metadata is read off the bridge, not RUSTVM storage** | `eth_getStorageAt` on `0x…0e12` only proves the id exists (admin slot) and holds balances. name/symbol/decimals come from `eth_call` to `0x…0e13`. |
 | **`staticcall` can't write** | Any function that moves PXC tokens must be non-view. |
 
 ## Honest status

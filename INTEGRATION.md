@@ -10,9 +10,10 @@ unit-tested. Import it in the wallet:
 import {
   getLifeloxProvider, connectLifelox, switchToPexli, watchWallet,
   rustBalanceOf, buildRustTransferTx, encodePxc20Transfer, rustBalanceSlot,
+  fetchRustTokenMeta, encodeBridgeRead, decodeBytes32String,
   ROUTER_ABI, buildRouterSwapTx, planSwap,
   ERC20_ABI, validateTokenList,
-  PEXLI_CHAIN_ID, RUSTVM_ADDRESS, NS, OP,
+  PEXLI_CHAIN_ID, RUSTVM_ADDRESS, PXC_BRIDGE_ADDRESS, NS, OP, BRIDGE,
 } from "@lifelox/dex-sdk";
 ```
 
@@ -84,6 +85,24 @@ Preimage is **29 bytes**; the slot is its keccak256. In the SDK:
 const bal = await rustBalanceOf(publicClient, token.id, address);   // -> bigint
 const slot = rustBalanceSlot(token.id, address, NS.PXC20);          // -> 0x… (32 bytes)
 ```
+
+**Name / symbol / decimals** — these are *not* in RUSTVM storage. They are read with
+`eth_call` against the bridge precompile (`PXC_BRIDGE_ADDRESS`, ends `…0e13`), the same
+one the cross-lane pair uses on-chain:
+
+```
+data = selector(1 byte) ‖ id(8 BE)      // 0x01 decimals, 0x02 symbol, 0x03 name
+```
+
+Symbol and name come back as a **right-padded utf-8 `bytes32`**; decimals as a uint256.
+
+```ts
+const meta = await fetchRustTokenMeta(publicClient, token.id);
+// { symbol: "RGOLD", name: "Rust Gold", decimals: 8, hasMetadata: true }
+```
+
+Metadata is **optional** on this chain. When `hasMetadata` is false, display `PXC #id`
+and treat decimals as 0 — never render an empty symbol as if it were real.
 
 **Transfer / operation** — a signed tx to `RUSTVM_ADDRESS` whose calldata is
 
@@ -219,7 +238,7 @@ if (plan.requiresRustLane) {
 | Check | Where | Status |
 |-------|-------|--------|
 | EIP-6963 discovery picks Lifelox rdns; fallback to `window.ethereum`; connect + chain flag | `sdk/test/wallet.test.mjs` | **pass** |
-| Rust-lane slot = keccak256(ns‖id‖holder); op calldata = op‖id‖to‖amount byte layout | `sdk/test/rustlane.test.mjs` | **pass** |
+| Rust-lane slot = keccak256(ns‖id‖holder); op calldata = op‖id‖to‖amount byte layout; bridge metadata read = selector‖id with bytes32 decoding | `sdk/test/rustlane.test.mjs` | **pass** |
 | Router calldata builders + planSwap (EVM vs Rust settlement) | `sdk/test/router.test.mjs` | **pass** |
 | Router incl. `swapExactETHForTokens` / `swapExactTokensForETH` on a real EVM | `contracts-solidity/test/e2e.mjs` | **17/17 pass** |
 

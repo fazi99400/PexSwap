@@ -17,6 +17,23 @@ export interface Token {
   color: [string, string];
 }
 
+// Deterministic icon gradient for any address/key, so a token that nobody has
+// hand-listed still renders with a stable colour everywhere in the app.
+const PALETTE: [string, string][] = [
+  ["#FF9A3D", "#E85D00"],
+  ["#4FE0A0", "#12A150"],
+  ["#7AA2FF", "#3B5BDB"],
+  ["#FFDE7A", "#E0A400"],
+  ["#FF8FB1", "#E64980"],
+  ["#8CE0D0", "#0CA678"],
+];
+
+export function colorForAddress(addr: string): [string, string] {
+  let h = 0;
+  for (const ch of addr.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
 export const NATIVE_PEX: Token = {
   address: "0x0000000000000000000000000000000000000000",
   symbol: "PEX",

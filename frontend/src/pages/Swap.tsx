@@ -31,6 +31,9 @@ export function Swap() {
 
   const amountInWei = parse(amountIn, tokenIn.decimals);
   const path = useMemo(() => [pathAddr(tokenIn), pathAddr(tokenOut)], [tokenIn, tokenOut]);
+  // A rust-lane side has no ERC-20 contract, so the EVM router cannot quote it —
+  // those swaps go through the cross-lane router (docs/RUST-POOLS.md).
+  const rustSide = tokenIn.lane === "rust" || tokenOut.lane === "rust";
 
   // Quote: how much tokenOut for the given tokenIn.
   const { data: amounts } = useReadContract({
@@ -38,7 +41,7 @@ export function Swap() {
     abi: ROUTER_ABI,
     functionName: "getAmountsOut",
     args: [amountInWei, path as `0x${string}`[]],
-    query: { enabled: amountInWei > 0n && path[0] !== path[1] },
+    query: { enabled: amountInWei > 0n && path[0] !== path[1] && !rustSide },
   });
   const amountOutWei = amounts?.[amounts.length - 1];
 
@@ -49,7 +52,7 @@ export function Swap() {
     abi: ERC20_ABI,
     functionName: "balanceOf",
     args: [address!],
-    query: { enabled: !!address && !isNative(tokenIn) },
+    query: { enabled: !!address && !isNative(tokenIn) && !rustSide },
   });
 
   // Allowance (only for non-native input).
@@ -58,7 +61,7 @@ export function Swap() {
     abi: ERC20_ABI,
     functionName: "allowance",
     args: [address!, ADDRESSES.router],
-    query: { enabled: !!address && !isNative(tokenIn) },
+    query: { enabled: !!address && !isNative(tokenIn) && !rustSide },
   });
 
   const needsApproval =
@@ -198,6 +201,10 @@ export function Swap() {
         {!isConnected ? (
           <button className="btn btn-primary" disabled>
             Connect wallet to swap
+          </button>
+        ) : rustSide ? (
+          <button className="btn btn-primary" disabled>
+            Rust lane — use the cross-lane router
           </button>
         ) : needsApproval ? (
           <button className="btn btn-primary" onClick={handleApprove} disabled={isPending}>

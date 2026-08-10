@@ -102,6 +102,7 @@ The site reads the contract addresses at build time. Add them once:
    | `VITE_PEXLI_RPC_URL` | your HTTPS pexli RPC |
    | `VITE_LIFELOX_FACTORY` | `0x…` |
    | `VITE_LIFELOX_ROUTER` | `0x…` |
+   | `VITE_LIFELOX_DUAL_FACTORY` | `0x…` (optional — cross-lane pools) |
    | `VITE_WPEX` | `0x…` |
    | `VITE_TOKEN_USDP` | `0x…` |
    | `VITE_TOKEN_PXLI` | `0x…` |

@@ -58,6 +58,8 @@ jobs:
           VITE_PEXLI_EXPLORER: ${{ vars.VITE_PEXLI_EXPLORER }}
           VITE_LIFELOX_FACTORY: ${{ vars.VITE_LIFELOX_FACTORY }}
           VITE_LIFELOX_ROUTER: ${{ vars.VITE_LIFELOX_ROUTER }}
+          # Optional: set it and the Positions list also shows cross-lane (Rust) pools.
+          VITE_LIFELOX_DUAL_FACTORY: ${{ vars.VITE_LIFELOX_DUAL_FACTORY }}
           VITE_WPEX: ${{ vars.VITE_WPEX }}
           VITE_TOKEN_USDP: ${{ vars.VITE_TOKEN_USDP }}
           VITE_TOKEN_PXLI: ${{ vars.VITE_TOKEN_PXLI }}

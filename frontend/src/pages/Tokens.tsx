@@ -94,14 +94,17 @@ export function Tokens() {
                 </span>
               </td>
               <td className="mono">{priceLabel(t.address)}</td>
-              <td className="subtle mono">{shortAddr(t.address)}</td>
+              {/* A rust token has no contract — its identity is the numeric id. */}
+              <td className="subtle mono">{t.lane === "rust" ? `id ${t.id}` : shortAddr(t.address)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <div className="subtle modal-note">
-        Prices are read live from each token's pool with PEX. Import your token (token
-        picker → paste address) and create a PEX pool to give it a price here.
+        Prices are read live from each token's pool with PEX. Any token with a pool on
+        the factory is listed here for everyone — create a PEX pool and your token shows
+        up for every visitor, no import needed. Import (token picker → 0x address, or a
+        rust id) only to see a token that has no pool yet.
       </div>
     </div>
   );

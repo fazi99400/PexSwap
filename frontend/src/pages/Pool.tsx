@@ -4,9 +4,9 @@ import { readContract } from "wagmi/actions";
 import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
 import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
-import { ADDRESSES } from "../config/addresses";
+import { ADDRESSES, isConfigured } from "../config/addresses";
 import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI } from "../config/abis";
-import { fmt, parse, deadline } from "../lib/format";
+import { fmt, parse, deadline, shortAddr } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, IconChevron, IconPlus, IconLayers } from "../components/Icons";
@@ -44,33 +44,42 @@ export function Pool() {
 /* Positions — every pool on the factory + your share                  */
 /* ------------------------------------------------------------------ */
 function Positions({ account }: { account?: `0x${string}` }) {
-  const { pools, count } = usePools(account);
+  const { pools, count, isLoading } = usePools(account);
 
-  if (ADDRESSES.factory === "0x0000000000000000000000000000000000000000") {
+  if (!isConfigured(ADDRESSES.factory)) {
     return <div className="empty">Set the deployed factory address in <code>.env</code> to load pools.</div>;
   }
   if (count === 0) {
     return (
       <div className="empty">
-        No pools yet. Switch to <b>New Position</b> to create the first one.
+        {isLoading ? "Loading pools…" : <>No pools yet. Switch to <b>New Position</b> to create the first one.</>}
       </div>
     );
   }
 
   return (
-    <div className="pool-list">
-      {pools.map((p) => (
-        <PoolRow key={p.pair} p={p} />
-      ))}
-    </div>
+    <>
+      <div className="subtle modal-note" style={{ marginTop: 0 }}>
+        Every pool on the factory, whoever created it — read live from the chain.
+      </div>
+      <div className="pool-list">
+        {pools.map((p) => (
+          <PoolRow key={p.pair} p={p} />
+        ))}
+      </div>
+    </>
   );
 }
+
+/** Label for a pool side whose metadata could not be read at all. */
+const sideLabel = (t?: Token, addr?: string) => t?.symbol ?? (addr ? shortAddr(addr) : "?");
 
 function PoolRow({ p }: { p: PoolInfo }) {
   const share =
     p.totalSupply > 0n ? Number((p.lpBalance * 10000n) / p.totalSupply) / 100 : 0;
-  const s0 = p.token0?.symbol ?? "?";
-  const s1 = p.token1?.symbol ?? "?";
+  const s0 = sideLabel(p.token0, p.token0Addr);
+  const s1 = sideLabel(p.token1, p.token1Addr);
+  const crossLane = p.token0?.lane === "rust" || p.token1?.lane === "rust";
   return (
     <div className="pool-row">
       <div className="pool-pair">
@@ -79,7 +88,10 @@ function PoolRow({ p }: { p: PoolInfo }) {
           {p.token1 && <TokenIcon token={p.token1} size={26} />}
         </div>
         <div>
-          <div className="pair-name">{s0} / {s1}</div>
+          <div className="pair-name">
+            {s0} / {s1}
+            {crossLane && <span className="lane-badge lane-rust" style={{ marginLeft: 6 }}>rust</span>}
+          </div>
           <div className="subtle">
             {fmt(p.reserve0, p.token0?.decimals ?? 18, 2)} {s0} · {fmt(p.reserve1, p.token1?.decimals ?? 18, 2)} {s1}
           </div>
@@ -110,6 +122,9 @@ function NewPosition() {
 
   const addrA = pairAddr(tokenA);
   const addrB = pairAddr(tokenB);
+  // Rust-lane sides live on the cross-lane router (contracts/dual), which this
+  // form does not drive — say so instead of sending a doomed EVM transaction.
+  const rustSide = tokenA.lane === "rust" || tokenB.lane === "rust";
 
   // Does the pool already exist?
   const { data: existingPair } = useReadContract({
@@ -214,13 +229,16 @@ function NewPosition() {
     }
   }
 
-  const disabled = !isConnected || isPending || amtAWei === 0n || amtBWei === 0n || addrA === addrB;
+  const disabled =
+    !isConnected || isPending || rustSide || amtAWei === 0n || amtBWei === 0n || addrA === addrB;
 
   return (
     <>
       <div className={`pool-banner ${creating ? "create" : "add"}`}>
         {addrA === addrB
           ? "Pick two different tokens."
+          : rustSide
+          ? "Rust-lane tokens pool through the cross-lane router — push the PXC side to the pair first (see docs/RUST-POOLS.md)."
           : creating
           ? "New pool — you are the first provider and set the initial price."
           : `Adding to the existing ${tokenA.symbol} / ${tokenB.symbol} pool. Amount is held to the current ratio.`}
@@ -268,6 +286,8 @@ function NewPosition() {
         <button className="btn btn-primary" onClick={submit} disabled={disabled}>
           {!isConnected
             ? "Connect wallet"
+            : rustSide
+            ? "Rust lane — use the cross-lane router"
             : isPending
             ? "Confirming…"
             : amtAWei === 0n || amtBWei === 0n

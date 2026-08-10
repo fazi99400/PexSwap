@@ -20,7 +20,7 @@ import {
   type Hex,
   type Address,
 } from "viem";
-import { NS, OP, RUSTVM_ADDRESS, type Ns } from "./constants.js";
+import { BRIDGE, NS, OP, PXC_BRIDGE_ADDRESS, RUSTVM_ADDRESS, type Ns } from "./constants.js";
 
 /** 8-byte big-endian encoding of a token id or amount (u64). */
 export function u64be(value: bigint | number): Uint8Array {
@@ -73,6 +73,79 @@ export async function rustBalanceOf(
   const raw = await client.getStorageAt({ address: rustvm, slot });
   if (!raw || raw === "0x") return 0n;
   return hexToBigInt(raw);
+}
+
+/* ------------------------------------------------------------------ */
+/* Metadata — the Rust-lane answer to ERC-20 name()/symbol()/decimals() */
+/* ------------------------------------------------------------------ */
+
+/** Calldata for a bridge read: selector(1) || id_be8 (9 bytes). */
+export function encodeBridgeRead(selector: number, id: bigint | number): Hex {
+  return bytesToHex(concatBytes([Uint8Array.of(selector & 0xff), u64be(id)]));
+}
+
+/** Decode a right-padded utf-8 `bytes32` word ("RGOLD\0\0…") into a string. */
+export function decodeBytes32String(word?: Hex | null): string {
+  if (!word || word === "0x") return "";
+  let bytes: Uint8Array;
+  try {
+    bytes = toBytes(word);
+  } catch {
+    return "";
+  }
+  const end = bytes.indexOf(0);
+  const text = new TextDecoder("utf-8", { fatal: false }).decode(
+    bytes.slice(0, end === -1 ? bytes.length : end)
+  );
+  return text.replace(/[\u0000-\u001f\u007f\ufffd]/g, "").trim();
+}
+
+export interface RustTokenMeta {
+  symbol: string;
+  name: string;
+  decimals: number;
+  /** False when the chain has no metadata for this id — display `PXC #id`. */
+  hasMetadata: boolean;
+}
+
+/** Minimal `eth_call` client (viem's PublicClient satisfies this). */
+export interface CallClient {
+  call(args: { to: Address; data: Hex }): Promise<{ data?: Hex }>;
+}
+
+/**
+ * Read a Rust-lane token's name, symbol and decimals through the bridge
+ * precompile. Metadata is optional on this chain: unset fields come back empty
+ * and callers should fall back to `PXC #id` rather than render an empty symbol.
+ */
+export async function fetchRustTokenMeta(
+  client: CallClient,
+  id: bigint | number,
+  bridge: Address = PXC_BRIDGE_ADDRESS
+): Promise<RustTokenMeta> {
+  const read = async (selector: number): Promise<Hex | undefined> => {
+    try {
+      const res = await client.call({ to: bridge, data: encodeBridgeRead(selector, id) });
+      return res?.data;
+    } catch {
+      return undefined; // no bridge / no metadata for this id
+    }
+  };
+
+  const [symWord, nameWord, decWord] = await Promise.all([
+    read(BRIDGE.SYMBOL),
+    read(BRIDGE.NAME),
+    read(BRIDGE.DECIMALS),
+  ]);
+
+  const symbol = decodeBytes32String(symWord);
+  const name = decodeBytes32String(nameWord);
+  let decimals = 0;
+  if (decWord && decWord !== "0x") {
+    const d = Number(hexToBigInt(decWord));
+    if (Number.isFinite(d) && d >= 0 && d <= 36) decimals = d;
+  }
+  return { symbol, name, decimals, hasMetadata: !!symbol || !!name };
 }
 
 /**

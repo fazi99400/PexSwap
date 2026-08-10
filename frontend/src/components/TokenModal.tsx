@@ -1,16 +1,11 @@
 import { useMemo, useState } from "react";
-import { isAddress, getAddress, type Address } from "viem";
+import { isAddress, type Address } from "viem";
 import { useReadContracts, usePublicClient } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
-import { Token } from "../config/tokens";
+import { colorForAddress, Token } from "../config/tokens";
 import { ERC20_ABI } from "../config/abis";
-import { colorForAddress } from "../hooks/useTokenList";
-import { isRustId, adminSlot, balanceSlot, RUSTVM_ADDRESS, RUST_NAMESPACES } from "../lib/rustvm";
+import { isRustId, detectRustToken, rustTokenFrom, rustKey } from "../lib/rustvm";
 import { TokenIcon, LaneMark, IconClose } from "./Icons";
-
-// A rust token has no real contract; we key it in the UI by its id encoded as an
-// address so it stays unique and de-dupes cleanly.
-const rustKey = (id: bigint): Address => getAddress(("0x" + id.toString(16).padStart(40, "0")) as Address);
 
 export function TokenModal({
   tokens,
@@ -43,17 +38,13 @@ export function TokenModal({
     query: { enabled: !!evmAddr && !alreadyListed },
   });
 
-  // ---- Rust path: prove the id exists from admin_slot at RUSTVM (no 0x contract) ----
+  // ---- Rust path: no 0x contract, so the id is proven from admin_slot at RUSTVM
+  // and its name/symbol/decimals come off the bridge precompile — the rust-lane
+  // equivalent of ERC-20 name()/symbol()/decimals(). ----
   const { data: rust, isLoading: rustLoading } = useQuery({
     queryKey: ["rust-detect", q],
     enabled: rustMode && !alreadyListed && !!publicClient,
-    queryFn: async () => {
-      for (const { ns, label } of RUST_NAMESPACES) {
-        const word = await publicClient!.getStorageAt({ address: RUSTVM_ADDRESS, slot: adminSlot(ns, rustId!) });
-        if (word && word !== "0x" && BigInt(word) !== 0n) return { ns, label };
-      }
-      return null;
-    },
+    queryFn: () => detectRustToken(publicClient!, rustId!),
   });
 
   const candidate: Token | undefined = useMemo(() => {
@@ -65,17 +56,7 @@ export function TokenModal({
       if (!symbol || decimals === undefined) return undefined;
       return { address: evmAddr, symbol, name: name ?? symbol, decimals, lane: "solidity", color: colorForAddress(evmAddr) };
     }
-    if (rustMode && rust) {
-      return {
-        address: key,
-        symbol: `PXC #${q}`,
-        name: `Rust ${rust.label} #${q}`,
-        decimals: 0,
-        lane: "rust",
-        id: Number(q),
-        color: colorForAddress(key),
-      };
-    }
+    if (rustMode && rust) return rustTokenFrom(rust);
     return undefined;
   }, [alreadyListed, key, evmAddr, meta, rustMode, rust, q]);
 

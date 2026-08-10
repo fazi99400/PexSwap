@@ -20,6 +20,21 @@ export const LIFELOX_WALLET_NAME = "Lifelox";
  */
 export const RUSTVM_ADDRESS = "0x0000000000000000000000000000000000000e12" as const;
 
+/**
+ * Rust-lane bridge precompile. Rust token metadata (name/symbol/decimals) is NOT
+ * in RUSTVM storage — it is read with `eth_call` against this address, which is
+ * also what `LifeloxDualPair` uses on-chain (contracts/dual/PxcBridge.sol).
+ */
+export const PXC_BRIDGE_ADDRESS = "0x0000000000000000000000000000000000000e13" as const;
+
+/** Bridge read selectors (first calldata byte, followed by the 8-byte id). */
+export const BRIDGE = {
+  DECIMALS: 0x01,
+  SYMBOL: 0x02,
+  NAME: 0x03,
+  BALANCE_20: 0x20,
+} as const;
+
 /** PXC namespaces (first storage-key byte). */
 export const NS = {
   PXC20: 0x20,

@@ -29,6 +29,21 @@ export const FACTORY_ABI = [
   { type: "function", name: "allPairs", stateMutability: "view", inputs: [{ name: "", type: "uint256" }], outputs: [{ type: "address" }] },
 ] as const;
 
+// Cross-lane (dual) factory + pair. A pool side here is an Asset — a lane tag
+// plus either a 0x address (Solidity) or a numeric id (Rust) — not an address.
+export const DUAL_FACTORY_ABI = [
+  { type: "function", name: "allPairsLength", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "allPairs", stateMutability: "view", inputs: [{ name: "", type: "uint256" }], outputs: [{ type: "address" }] },
+] as const;
+
+export const DUAL_PAIR_ABI = [
+  { type: "function", name: "asset0", stateMutability: "view", inputs: [], outputs: [{ name: "lane", type: "uint8" }, { name: "token", type: "address" }, { name: "id", type: "uint64" }] },
+  { type: "function", name: "asset1", stateMutability: "view", inputs: [], outputs: [{ name: "lane", type: "uint8" }, { name: "token", type: "address" }, { name: "id", type: "uint64" }] },
+  { type: "function", name: "getReserves", stateMutability: "view", inputs: [], outputs: [{ name: "reserve0", type: "uint112" }, { name: "reserve1", type: "uint112" }, { name: "blockTimestampLast", type: "uint32" }] },
+  { type: "function", name: "totalSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
+] as const;
+
 export const PAIR_ABI = [
   { type: "function", name: "getReserves", stateMutability: "view", inputs: [], outputs: [{ name: "reserve0", type: "uint112" }, { name: "reserve1", type: "uint112" }, { name: "blockTimestampLast", type: "uint32" }] },
   { type: "function", name: "token0", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },

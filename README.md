@@ -78,7 +78,12 @@ Lifelox/
 - **Add Liquidity** — for an existing pool, the second amount is auto-held to the
   current reserve ratio.
 - **Positions** — lists every pool registered on the factory with reserves and your
-  LP share, read straight from chain.
+  LP share, read straight from chain. Pools are **global**: whoever creates one, every
+  visitor sees it, and pool sides that aren't in the built-in list get their real
+  name/symbol/decimals read on the fly (and show up in the token pickers too).
+- **Token import, both lanes** — a `0x` address resolves through ERC-20
+  `name()/symbol()/decimals()`; a **numeric rust id** resolves the same way through the
+  bridge precompile, so a Rust token shows its real ticker instead of a placeholder.
 - **Light / dark theme** — persisted to `localStorage`.
 - **Lane badges** — each token is tagged Solidity (◆) or Rust (⬡); the whole app
   treats them identically.
@@ -96,7 +101,8 @@ Lifelox ships an SDK the **Lifelox Web3 wallet** (EIP-1193 + EIP-6963, rdns
 - **EIP-6963 discovery** of the Lifelox provider (fallback `window.ethereum`),
   connect + verify chain 78901.
 - **Rust-lane PXC tokens**: balance via `eth_getStorageAt` on the RUSTVM account
-  (`slot = keccak256(ns‖id‖holder)`) and transfers via op-coded calldata
+  (`slot = keccak256(ns‖id‖holder)`), name/symbol/decimals via `eth_call` to the bridge
+  precompile (`0x01/0x02/0x03 ‖ id`), and transfers via op-coded calldata
   (`op‖id‖to‖amount`) — encoders unit-tested against the documented layout.
 - **Router**: standard Uniswap-V2 ABI incl. `swapExactETHForTokens` /
   `swapExactTokensForETH` (native = PEX) — tested on a real EVM.
