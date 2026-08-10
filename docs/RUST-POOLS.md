@@ -96,10 +96,9 @@ uses the V2 "**transfer in, then call**" pattern:
 cd contracts-solidity && npm install
 export PEXLI_RPC_URL=https://testrpc.pex.li
 export PRIVATE_KEY=0xYOUR_FUNDED_KEY
-export WPEX=0xYourWpex             # the router wraps native PEX itself
 npm run deploy:dual                # LifeloxDualFactory + LifeloxDualRouter
 
-# Already have a factory? Keep it (and every pool on it) and redeploy only the router:
+# Keep an existing factory (and every pool on it) and redeploy only the router:
 DUAL_FACTORY=0xYourExistingFactory npm run deploy:dual
 ```
 

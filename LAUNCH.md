@@ -93,8 +93,9 @@ npm run bridge:check -- --id 90909      # first prove the bridge answers on your
 npm run deploy:dual
 ```
 
-Already deployed the factory once? Keep it — and every pool on it — and redeploy only
-the router:
+Redeploying? The factory and router changed shape together, so **both** must be
+redeployed — withdraw any liquidity from the old dual factory first. To keep a factory
+that is already on the current code and replace only the router:
 
 ```bash
 DUAL_FACTORY="0xYourExistingDualFactory" npm run deploy:dual
@@ -108,8 +109,8 @@ VITE_LIFELOX_DUAL_ROUTER=0x...
 ```
 
 Add those two in Part B alongside the rest, and the interface will create, list and
-swap Rust ↔ Solidity pools. PEX pools natively here — no WPEX involved. Without them the app says so instead of sending a
-transaction that cannot succeed.
+swap Rust ↔ Solidity pools — PEX pools natively here, no WPEX involved. Without them
+the app says so instead of sending a transaction that cannot succeed.
 
 ---
 
