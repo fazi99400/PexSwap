@@ -12,9 +12,9 @@ import {
   PAIR_ABI,
   DUAL_FACTORY_ABI,
   DUAL_ROUTER_ABI,
-  WPEX_ABI,
+  DUAL_PAIR_ABI,
 } from "../config/abis";
-import { fmt, parse, deadline, shortAddr } from "../lib/format";
+import { fmt, fmtReserve, parse, deadline, shortAddr } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, IconChevron, IconPlus, IconLayers } from "../components/Icons";
@@ -75,7 +75,7 @@ function Positions({ account }: { account?: `0x${string}` }) {
       </div>
       <div className="pool-list">
         {pools.map((p) => (
-          <PoolRow key={p.pair} p={p} />
+          <PoolRow key={p.pair} p={p} account={account} />
         ))}
       </div>
     </>
@@ -85,12 +85,52 @@ function Positions({ account }: { account?: `0x${string}` }) {
 /** Label for a pool side whose metadata could not be read at all. */
 const sideLabel = (t?: Token, addr?: string) => t?.symbol ?? (addr ? shortAddr(addr) : "?");
 
-function PoolRow({ p }: { p: PoolInfo }) {
+function PoolRow({ p, account }: { p: PoolInfo; account?: `0x${string}` }) {
+  const { writeContractAsync } = useWriteContract();
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
   const share =
     p.totalSupply > 0n ? Number((p.lpBalance * 10000n) / p.totalSupply) / 100 : 0;
   const s0 = sideLabel(p.token0, p.token0Addr);
   const s1 = sideLabel(p.token1, p.token1Addr);
   const crossLane = p.token0?.lane === "rust" || p.token1?.lane === "rust";
+  const abi = p.source === "dual" ? DUAL_PAIR_ABI : PAIR_ABI;
+
+  /**
+   * Withdraw the whole position. Both pair types are Uniswap-V2 shaped, so the
+   * low-level path works for either: send the LP tokens back to the pair, then
+   * burn them — the pair pays each side out through its own lane. This is also
+   * the way out of a pool that was seeded at the wrong ratio.
+   */
+  async function remove() {
+    if (!account || p.lpBalance === 0n) return;
+    setErr("");
+    try {
+      setBusy("Returning LP…");
+      const send = await writeContractAsync({
+        address: p.pair,
+        abi,
+        functionName: "transfer",
+        args: [p.pair, p.lpBalance],
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: send });
+
+      setBusy("Withdrawing…");
+      const burn = await writeContractAsync({
+        address: p.pair,
+        abi,
+        functionName: "burn",
+        args: [account],
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: burn });
+    } catch (e: any) {
+      setErr(e?.shortMessage ?? e?.message ?? "Withdraw failed");
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <div className="pool-row">
       <div className="pool-pair">
@@ -104,13 +144,20 @@ function PoolRow({ p }: { p: PoolInfo }) {
             {crossLane && <span className="lane-badge lane-rust" style={{ marginLeft: 6 }}>rust</span>}
           </div>
           <div className="subtle">
-            {fmt(p.reserve0, p.token0?.decimals ?? 18, 2)} {s0} · {fmt(p.reserve1, p.token1?.decimals ?? 18, 2)} {s1}
+            {fmtReserve(p.reserve0, p.token0?.decimals ?? 18)} {s0} ·{" "}
+            {fmtReserve(p.reserve1, p.token1?.decimals ?? 18)} {s1}
           </div>
+          {err && <div className="msg msg-error">{err}</div>}
         </div>
       </div>
       <div className="pool-share">
         <div className="pair-name">{share > 0 ? `${share}%` : "—"}</div>
         <div className="subtle">your share</div>
+        {p.lpBalance > 0n && (
+          <button className="btn btn-ghost pool-remove" onClick={remove} disabled={!!busy}>
+            {busy || "Withdraw"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -206,6 +253,19 @@ function NewPosition() {
   const overU64 =
     (tokenA.lane === "rust" && amtAWei > U64_MAX) || (tokenB.lane === "rust" && amtBWei > U64_MAX);
 
+  // What each Rust side really sends: the lane counts in base units and its
+  // decimals come from the chain, so "22" can mean 22 whole tokens or 22 dust.
+  const rustUnits = [
+    [tokenA, amtAWei],
+    [tokenB, amtBWei],
+  ]
+    .filter(([t, amt]) => (t as Token).lane === "rust" && (amt as bigint) > 0n)
+    .map(([t, amt]) => ({
+      symbol: (t as Token).symbol,
+      decimals: (t as Token).decimals,
+      units: (amt as bigint).toLocaleString(),
+    }));
+
   // A native-PEX side in a cross-lane pool is wrapped to WPEX by the flow below,
   // so it only needs WPEX to actually be deployed.
   const nativeInDual = dualMode && (isNative(tokenA) || isNative(tokenB));
@@ -232,8 +292,9 @@ function NewPosition() {
 
   /** Allowance for the cross-lane router, where native PEX is really WPEX. */
   async function approveForDual(t: Token, amt: bigint) {
-    if (t.lane === "rust") return; // nothing to approve on the Rust lane
-    const token = isNative(t) ? ADDRESSES.wpex : t.address;
+    // Rust: nothing to approve. Native PEX: paid as msg.value, nothing to approve.
+    if (t.lane === "rust" || isNative(t)) return;
+    const token = t.address;
     const a = await readAllowance(token, address!, ADDRESSES.dualRouter);
     if (a < amt) {
       const hash = await writeContractAsync({
@@ -259,41 +320,13 @@ function NewPosition() {
       [tokenB, amtBWei],
     ] as const;
 
-    // 0. the cross-lane router moves ERC-20s only — it has no payable path, so
-    //    native PEX has to become WPEX first.
-    for (const [t, amt] of sides) {
-      if (!isNative(t)) continue;
-      setStep("Wrapping PEX…");
-      const hash = await writeContractAsync({
-        address: ADDRESSES.wpex,
-        abi: WPEX_ABI,
-        functionName: "deposit",
-        value: amt,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash });
-    }
+    // 1. the pair address. A pool that does not exist yet still has a known
+    //    CREATE2 address, so the Rust push can go straight to it and the router
+    //    creates the pair in the same call that mints — one transaction fewer.
+    const pair = dual.pairAddress;
+    if (!pair) throw new Error("Could not resolve the pool address");
 
-    // 1. the pair — created first so we have an address to push Rust tokens to.
-    let pair = dual.pair;
-    if (!pair) {
-      setStep("Creating the pool…");
-      const hash = await writeContractAsync({
-        address: ADDRESSES.dualFactory,
-        abi: DUAL_FACTORY_ABI,
-        functionName: "createPair",
-        args: [assetArg(assetA), assetArg(assetB)],
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash });
-      pair = (await readContract(wagmiConfig, {
-        address: ADDRESSES.dualFactory,
-        abi: DUAL_FACTORY_ABI,
-        functionName: "getPair",
-        args: [assetArg(assetA), assetArg(assetB)],
-      })) as `0x${string}`;
-      if (!pair || pair === ZERO_ADDRESS) throw new Error("Pool was not created");
-    }
-
-    // 2. push each Rust side into the pair (a plain tx to the Rust-VM account).
+    // 1b. push each Rust side into the pair (a plain tx to the Rust-VM account).
     for (const [t, amt] of sides) {
       if (t.lane !== "rust") continue;
       setStep(`Sending ${t.symbol} to the pool…`);
@@ -305,18 +338,21 @@ function NewPosition() {
       await waitForTransactionReceipt(wagmiConfig, { hash });
     }
 
-    // 3. Solidity sides (WPEX included) are pulled by the router — allowance first.
+    // 2. Solidity sides are pulled by the router — allowance first. Native PEX
+    //    needs none: it travels as msg.value and the router wraps it.
     setStep("Approving…");
     await approveForDual(tokenA, amtAWei);
     await approveForDual(tokenB, amtBWei);
 
-    // 4. mint the LP position.
-    setStep(creating ? "Seeding the pool…" : "Adding liquidity…");
+    // 3. create-if-needed, wrap any PEX, and mint the LP position — one call.
+    setStep(creating ? "Creating and seeding the pool…" : "Adding liquidity…");
+    const pexValue = isNative(tokenA) ? amtAWei : isNative(tokenB) ? amtBWei : 0n;
     const hash = await writeContractAsync({
       address: ADDRESSES.dualRouter,
       abi: DUAL_ROUTER_ABI,
       functionName: "addLiquidity",
       args: [assetArg(assetA), assetArg(assetB), amtAWei, amtBWei, address!, dl],
+      value: pexValue,
     });
     await waitForTransactionReceipt(wagmiConfig, { hash });
     await dual.refetchPair();
@@ -431,6 +467,18 @@ function NewPosition() {
           </button>
         </div>
       </div>
+
+      {/* Everything on the Rust lane is counted in base units, and the decimals
+          come from the chain — so spell out what will actually be sent. A pool
+          seeded with a dust amount is what produces those absurd prices. */}
+      {rustUnits.map((u) => (
+        <div className="info-row" key={u.symbol}>
+          <span>{u.symbol} sent as</span>
+          <b>
+            {u.units} base units {u.decimals > 0 && <span className="subtle">({u.decimals} decimals)</span>}
+          </b>
+        </div>
+      ))}
 
       {initialPrice && (
         <div className="info-row">

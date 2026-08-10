@@ -12,7 +12,7 @@ import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
 import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
 import { ADDRESSES, isConfigured } from "../config/addresses";
-import { ERC20_ABI, ROUTER_ABI, DUAL_ROUTER_ABI, WPEX_ABI } from "../config/abis";
+import { ERC20_ABI, ROUTER_ABI, DUAL_ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
@@ -110,8 +110,7 @@ export function Swap() {
 
   const overU64 = tokenIn.lane === "rust" && amountInWei > U64_MAX;
   const blockedRust = rustSide && !dualDeployed;
-  // The cross-lane router only moves ERC-20s, so native PEX is wrapped on the way
-  // in and unwrapped on the way out — that just needs WPEX to be deployed.
+  // The router wraps/unwraps native PEX itself; it just needs to know WPEX.
   const nativeInDual = dualMode && (isNative(tokenIn) || isNative(tokenOut));
   const wpexMissing = nativeInDual && !isConfigured(ADDRESSES.wpex);
 
@@ -148,28 +147,10 @@ export function Swap() {
    * Solidity input is pulled by the router as usual.
    */
   async function swapDual(minOut: bigint, dl: bigint) {
-    // Native PEX in: wrap it, so the router has an ERC-20 to pull.
-    if (isNative(tokenIn)) {
-      setStep("Wrapping PEX…");
-      const wrap = await writeContractAsync({
-        address: ADDRESSES.wpex,
-        abi: WPEX_ABI,
-        functionName: "deposit",
-        value: amountInWei,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash: wrap });
-    }
-
-    // Native PEX out: the router pays WPEX, so measure it and unwrap after.
-    const wpexBefore = isNative(tokenOut)
-      ? ((await readContract(wagmiConfig, {
-          address: ADDRESSES.wpex,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [address!],
-        })) as bigint)
-      : 0n;
-
+    // Native PEX is handled by the router itself — sent as msg.value on the way
+    // in, unwrapped back to PEX on the way out — so there is nothing to sign for
+    // it here. Only a Rust input still needs its own transaction, because that
+    // lane has no approve and only the holder can move the tokens.
     if (tokenIn.lane === "rust") {
       if (!dual.pair) throw new Error("No pool for this pair yet");
       setStep(`Sending ${tokenIn.symbol} to the pool…`);
@@ -179,8 +160,8 @@ export function Swap() {
         value: 0n,
       });
       await waitForTransactionReceipt(wagmiConfig, { hash: push });
-    } else {
-      const inToken = isNative(tokenIn) ? ADDRESSES.wpex : tokenIn.address;
+    } else if (!isNative(tokenIn)) {
+      const inToken = tokenIn.address;
       const current = (await readContract(wagmiConfig, {
         address: inToken,
         abi: ERC20_ABI,
@@ -204,30 +185,18 @@ export function Swap() {
       address: ADDRESSES.dualRouter,
       abi: DUAL_ROUTER_ABI,
       functionName: "swapExactInput",
-      args: [assetArg(assetIn), assetArg(assetOut), amountInWei, minOut, address!, dl],
+      args: [
+        assetArg(assetIn),
+        assetArg(assetOut),
+        amountInWei,
+        minOut,
+        address!,
+        dl,
+        isNative(tokenOut), // unwrapPEX — pay out native PEX, not WPEX
+      ],
+      value: isNative(tokenIn) ? amountInWei : 0n,
     });
     await waitForTransactionReceipt(wagmiConfig, { hash });
-
-    // Give the user real PEX back, not WPEX — unwrap exactly what arrived.
-    if (isNative(tokenOut)) {
-      const after = (await readContract(wagmiConfig, {
-        address: ADDRESSES.wpex,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [address!],
-      })) as bigint;
-      const received = after - wpexBefore;
-      if (received > 0n) {
-        setStep("Unwrapping to PEX…");
-        const out = await writeContractAsync({
-          address: ADDRESSES.wpex,
-          abi: WPEX_ABI,
-          functionName: "withdraw",
-          args: [received],
-        });
-        await waitForTransactionReceipt(wagmiConfig, { hash: out });
-      }
-    }
   }
 
   async function handleSwap() {

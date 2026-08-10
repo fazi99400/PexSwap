@@ -31,6 +31,19 @@ const assetKey = (a) =>
     : ethers.keccak256(ethers.solidityPacked(["uint8", "address"], [0, a.token]));
 const isFirst = (a, b) => BigInt(assetKey(a)) < BigInt(assetKey(b));
 
+/** The frontend's pairHash + CREATE2 prediction (lib/dual.ts). */
+const pairHashOffChain = (a, b) => {
+  const [x, y] = isFirst(a, b) ? [a, b] : [b, a];
+  return ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint8", "address", "uint64", "uint8", "address", "uint64"],
+      [x.lane, x.token, x.id, y.lane, y.token, y.id]
+    )
+  );
+};
+const predictPair = (factory, initCodeHash, a, b) =>
+  ethers.getCreate2Address(factory, pairHashOffChain(a, b), initCodeHash);
+
 const ZERO = ethers.ZeroAddress;
 const solidityAsset = (token) => ({ lane: 0, token, id: 0n });
 const rustAsset = (id) => ({ lane: 1, token: ZERO, id: BigInt(id) });
@@ -68,15 +81,25 @@ async function main() {
     ["solidity ↔ solidity", solidityAsset(await tokenA.getAddress()), solidityAsset(await tokenB.getAddress())],
   ];
 
+  const codeHash = await factory.pairCodeHash();
+  const factoryAddr = await factory.getAddress();
+
   for (const [label, a, b] of cases) {
     // The factory hashes the pair the same way regardless of argument order…
     const h1 = await factory.pairHash(tuple(a), tuple(b));
     const h2 = await factory.pairHash(tuple(b), tuple(a));
     check(`${label}: pairHash is order-independent`, h1 === h2);
 
+    check(`${label}: off-chain pairHash matches the factory`, pairHashOffChain(a, b) === h1);
+
+    // The UI pushes Rust tokens to this address BEFORE the pair exists, so the
+    // prediction has to be right to the byte.
+    const predicted = predictPair(factoryAddr, codeHash, a, b);
+
     await (await factory.createPair(tuple(a), tuple(b), TX)).wait();
     const pairAddr = await factory.getPair(tuple(a), tuple(b));
     check(`${label}: pair created`, pairAddr !== ZERO);
+    check(`${label}: UI predicted the pair address before deployment`, predicted === pairAddr);
 
     const pair = new ethers.Contract(pairAddr, art.LifeloxDualPair.abi, provider);
     const onChain0 = await pair.asset0();

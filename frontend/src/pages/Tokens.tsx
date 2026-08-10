@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
-import { shortAddr } from "../lib/format";
+import { fmtPrice, shortAddr } from "../lib/format";
 import { ADDRESSES } from "../config/addresses";
 import { NATIVE_PEX } from "../config/tokens";
 import { useTokenList } from "../hooks/useTokenList";
@@ -58,7 +58,7 @@ export function Tokens() {
     if (addr === NATIVE_PEX.address || lower === wpex) return "—";
     const info = priceInfo.get(lower);
     if (!info) return "—";
-    return `${info.price.toLocaleString(undefined, { maximumSignificantDigits: 6 })} ${info.symbol}`;
+    return `${fmtPrice(info.price)} ${info.symbol}`;
   }
 
   return (

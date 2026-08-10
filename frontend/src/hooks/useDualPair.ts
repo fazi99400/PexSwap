@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { ADDRESSES, ZERO_ADDRESS, isConfigured } from "../config/addresses";
 import { DUAL_FACTORY_ABI, DUAL_PAIR_ABI } from "../config/abis";
-import { Asset, assetArg, isFirst } from "../lib/dual";
+import { Asset, assetArg, isFirst, predictPair } from "../lib/dual";
 
 /** The cross-lane pool for (a, b): its address, whether it exists yet, and the
  *  reserves already flipped into (a, b) order. */
@@ -19,6 +19,17 @@ export function useDualPair(a?: Asset, b?: Asset) {
 
   const pair = pairData as `0x${string}` | undefined;
   const exists = !!pair && pair !== ZERO_ADDRESS;
+
+  // The pair's CREATE2 address is knowable before it is deployed, which is what
+  // lets a Rust side be pushed into it first (see lib/dual.ts).
+  const { data: codeHash } = useReadContract({
+    address: ADDRESSES.dualFactory,
+    abi: DUAL_FACTORY_ABI,
+    functionName: "pairCodeHash",
+    query: { enabled: ready, staleTime: Infinity },
+  });
+  const predicted =
+    ready && codeHash ? predictPair(ADDRESSES.dualFactory, codeHash as `0x${string}`, a!, b!) : undefined;
 
   const { data: state } = useReadContracts({
     contracts: exists
@@ -41,6 +52,8 @@ export function useDualPair(a?: Asset, b?: Asset) {
   return {
     ready,
     pair: exists ? pair : undefined,
+    /** Address the pair has (or will have) — safe to send tokens to either way. */
+    pairAddress: exists ? pair : predicted,
     exists,
     reserves,
     totalSupply: (state?.[1]?.result as bigint | undefined) ?? 0n,

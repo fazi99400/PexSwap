@@ -266,6 +266,8 @@ svg { display: block; }
 .pair-icons > *:last-child { margin-left: -9px; }
 .pair-name { font-weight: 700; }
 .pool-share { text-align: right; }
+/* Withdraw sits under the share figure; small, quiet, never the main action. */
+.pool-remove { margin-top: 6px; padding: 4px 10px; font-size: 12px; width: auto; }
 .empty {
   text-align: center; color: var(--text-dim); font-size: 14px; line-height: 1.6;
   padding: 34px 16px; background: var(--card-2); border: 1px dashed var(--border); border-radius: 16px;

@@ -4,7 +4,11 @@
 //
 //   export PEXLI_RPC_URL=https://testrpc.pex.li
 //   export PRIVATE_KEY=0xYOUR_FUNDED_KEY
+//   export WPEX=0xYourWpex            # the router wraps native PEX itself
 //   node scripts/deploy-dual.mjs
+//
+// Set DUAL_FACTORY=0x… to keep an existing factory (and every pool on it) and
+// deploy only a new router.
 import { ethers } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
@@ -14,10 +18,16 @@ import { compileAll } from "../test/compile.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RPC = process.env.PEXLI_RPC_URL;
 const KEY = process.env.PRIVATE_KEY;
+const WPEX = process.env.WPEX;
+const EXISTING_FACTORY = process.env.DUAL_FACTORY;
 const GAS_LIMIT = process.env.GAS_LIMIT ? BigInt(process.env.GAS_LIMIT) : undefined;
 
 if (!RPC || !KEY) {
   console.error("Set PEXLI_RPC_URL and PRIVATE_KEY first.");
+  process.exit(1);
+}
+if (!WPEX || !/^0x[0-9a-fA-F]{40}$/.test(WPEX)) {
+  console.error("Set WPEX=0x… — the router needs it to wrap native PEX.");
   process.exit(1);
 }
 
@@ -40,14 +50,17 @@ async function main() {
     return c;
   };
 
-  const factory = await deploy("LifeloxDualFactory");
-  const router = await deploy("LifeloxDualRouter", [await factory.getAddress()]);
+  // Reusing the factory keeps every pool that already exists on it.
+  const factoryAddr = EXISTING_FACTORY ?? (await (await deploy("LifeloxDualFactory")).getAddress());
+  if (EXISTING_FACTORY) console.log(`  LifeloxDualFactory ${factoryAddr} (existing, reused)`);
+  const router = await deploy("LifeloxDualRouter", [factoryAddr, WPEX]);
 
   const out = {
     chainId: Number(net.chainId),
     rpc: RPC,
-    LifeloxDualFactory: await factory.getAddress(),
+    LifeloxDualFactory: factoryAddr,
     LifeloxDualRouter: await router.getAddress(),
+    WPEX,
     bridge: "0x0000000000000000000000000000000000000e13",
     rustVm: "0x0000000000000000000000000000000000000e12",
   };

@@ -12,7 +12,14 @@
 // Recomputing that key here lets the UI know which side is token0 (and therefore
 // which reserve is which) without an extra round-trip.
 
-import { encodePacked, keccak256, type Address, type Hex } from "viem";
+import {
+  encodeAbiParameters,
+  encodePacked,
+  getContractAddress,
+  keccak256,
+  type Address,
+  type Hex,
+} from "viem";
 import { NATIVE_PEX, type Token } from "../config/tokens";
 
 export const LANE_SOLIDITY = 0;
@@ -51,3 +58,39 @@ export function sameAsset(a: Asset, b: Asset): boolean {
 
 /** Tuple form viem needs for a `struct Asset` argument. */
 export const assetArg = (a: Asset) => ({ lane: a.lane, token: a.token, id: a.id }) as const;
+
+/** LifeloxDualFactory.pairHash — the CREATE2 salt, sorted and abi-encoded. */
+export function pairHash(a: Asset, b: Asset): Hex {
+  const [x, y] = isFirst(a, b) ? [a, b] : [b, a];
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: "uint8" },
+        { type: "address" },
+        { type: "uint64" },
+        { type: "uint8" },
+        { type: "address" },
+        { type: "uint64" },
+      ],
+      [x.lane, x.token, x.id, y.lane, y.token, y.id]
+    )
+  );
+}
+
+/**
+ * Where the pair for (a, b) lives — even before it is deployed.
+ *
+ * This matters for a Rust side: the tokens have to be pushed to the pair address
+ * *before* the router can measure them, and pushing is a plain transfer that
+ * cannot create anything. Predicting the CREATE2 address lets the push happen
+ * first and the router create the pair in the same call that mints, saving the
+ * user a whole transaction.
+ */
+export function predictPair(factory: Address, initCodeHash: Hex, a: Asset, b: Asset): Address {
+  return getContractAddress({
+    opcode: "CREATE2",
+    from: factory,
+    salt: pairHash(a, b),
+    bytecodeHash: initCodeHash,
+  });
+}

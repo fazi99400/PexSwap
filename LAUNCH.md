@@ -89,8 +89,16 @@ they just have to be deployed:
 cd contracts-solidity
 export PEXLI_RPC_URL="https://your-pexli-rpc"
 export PRIVATE_KEY="0xYOUR_FUNDED_KEY"
+export WPEX="0xYourWpexFromPartA"       # the router wraps native PEX itself
 npm run bridge:check -- --id 90909      # first prove the bridge answers on your chain
 npm run deploy:dual
+```
+
+Already deployed the factory once? Keep it — and every pool on it — and redeploy only
+the router:
+
+```bash
+DUAL_FACTORY="0xYourExistingDualFactory" npm run deploy:dual
 ```
 
 It prints (and saves to `deployments-dual.json`):

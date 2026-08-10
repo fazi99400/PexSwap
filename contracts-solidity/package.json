@@ -10,6 +10,7 @@
     "deploy:dual": "node scripts/deploy-dual.mjs",
     "bridge:check": "node test/dual-bridge-check.mjs",
     "test:dual-order": "node test/dual-asset-order.mjs",
+    "test:dual-pex": "node test/dual-pex.mjs",
     "deploy:testnet": "hardhat run scripts/deploy.js --network pexliTestnet",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost"
   },

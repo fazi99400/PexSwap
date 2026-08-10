@@ -60,18 +60,36 @@ uses the V2 "**transfer in, then call**" pattern:
   shared token list, so those tokens also appear in every picker without an import.
 - **Creating and swapping cross-lane pools** needs the dual contracts deployed and
   `VITE_LIFELOX_DUAL_FACTORY` + `VITE_LIFELOX_DUAL_ROUTER` set (see LAUNCH.md §A3).
-  With them, picking a Rust token in **Pool → New Position** runs the full sequence —
-  wrap native PEX to WPEX if a side is PEX, `createPair`, the PXC push into the pair,
-  the approve for any Solidity side, then `router.addLiquidity` — showing which
-  transaction is in flight; **Swap** does the same (wrap, push, `swapExactInput`, and
-  an unwrap back to PEX when the output side is native) and quotes from the reserves.
-  The cross-lane router has no payable path, which is why the wrap/unwrap is done by
-  the interface rather than by the contract. Without them the UI
-  says which contracts are missing instead of sending a transaction that cannot succeed.
-- **Which side is token0** is decided by `AssetLib.key()`. The interface recomputes that
-  key off-chain (`frontend/src/lib/dual.ts`), so it is pinned to the contract by
-  `npm run test:dual-order` — it creates real pairs (Solidity↔Rust, Rust↔Rust,
-  Solidity↔Solidity) on an in-memory EVM and compares `asset0()` with the UI's choice.
+  It then works like an ordinary pool — **PEX + a Rust token is two transactions**:
+
+  1. the PXC push to the pair, and
+  2. `router.addLiquidity{value: pexAmount}` — which creates the pair if needed and
+     wraps the PEX itself.
+
+  Nothing else is signed: the pair address is predicted off-chain (CREATE2), so it
+  needs no `createPair` call, and native PEX needs no `approve` and no separate
+  `WPEX.deposit`. An ERC-20 side costs one `approve`, exactly like the EVM lane.
+  **Swap** is the same shape — a Rust input is pushed first, everything else rides
+  along with `swapExactInput`, which takes `unwrapPEX` so a PEX payout arrives as
+  native PEX. Without the contracts the UI says which ones are missing instead of
+  sending a transaction that cannot succeed.
+- **Why the push is still separate:** `PxcBridge.transfer20` moves PXC **from the
+  caller**, so a contract can only move its own balance. No router can pull a Rust
+  token on the user's behalf — that transaction is a property of the chain, not of
+  this interface.
+- **Which side is token0, and where the pair lives**, are both decided by
+  `AssetLib.key()` and recomputed off-chain (`frontend/src/lib/dual.ts`) — the second
+  one matters because Rust tokens are pushed to the pair *before* it is deployed.
+  `npm run test:dual-order` pins both to the contract: it creates real pairs
+  (Solidity↔Rust, Rust↔Rust, Solidity↔Solidity) on an in-memory EVM and checks the
+  UI's `asset0()` choice and its predicted CREATE2 address against the factory.
+- **Native PEX is the router's job**, not the interface's: `addLiquidity` and
+  `swapExactInput` are payable and wrap/unwrap through WPEX. `npm run test:dual-pex`
+  proves it on a real EVM (pool seeded with `value`, PEX-in swap, PEX-out unwrap, no
+  WPEX or PEX left stranded on the user or the router).
+- **Withdrawing** works on both pair types the low-level V2 way — the LP tokens go
+  back to the pair and `burn` pays each side out through its own lane. That is also
+  the way out of a pool seeded at the wrong ratio.
 
 ## Deploy
 
@@ -79,7 +97,11 @@ uses the V2 "**transfer in, then call**" pattern:
 cd contracts-solidity && npm install
 export PEXLI_RPC_URL=https://testrpc.pex.li
 export PRIVATE_KEY=0xYOUR_FUNDED_KEY
-npm run deploy:dual        # LifeloxDualFactory + LifeloxDualRouter
+export WPEX=0xYourWpex             # the router wraps native PEX itself
+npm run deploy:dual                # LifeloxDualFactory + LifeloxDualRouter
+
+# Already have a factory? Keep it (and every pool on it) and redeploy only the router:
+DUAL_FACTORY=0xYourExistingFactory npm run deploy:dual
 ```
 
 ## Testing — on the chain, not on assumptions (prompt §6)
