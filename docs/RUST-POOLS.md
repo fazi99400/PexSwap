@@ -10,10 +10,19 @@ Solidity↔Rust pair. It works because the chain exposes a **bridge precompile**
 
 ## How it works
 
-- **Bridge precompile** `0x…0e13` lets EVM code read/move Rust-lane tokens:
-  - reads (staticcall): `0x20` balance, `0x01` decimals, `0x02` symbol, `0x03` name.
-  - writes (call): `0xA0` PXC-20 transfer **from the caller**.
-  Wrapped in [`PxcBridge.sol`](../contracts-solidity/contracts/dual/PxcBridge.sol).
+- **Bridge precompile** `0x…0e13` lets EVM code read/move Rust-lane tokens.
+  Confirmed against the chain's own code:
+
+  | Direction | How | What it can do |
+  |---|---|---|
+  | EVM → Rust, read | `staticcall` | balances `0x20` / `0x11`, NFT owner `0x71`, decimals `0x01`, symbol `0x02`, name `0x03`, raw account `0x50` |
+  | EVM → Rust, write | `call` | PXC-20 transfer `0xA0`, PXC-1155 transfer `0xA1`, PXC-20 mint `0xA2` — all **from the caller** |
+  | Rust → EVM, read | op `0x54` `OP_INVOKE_XLANE` | reads **one EVM storage slot** |
+  | Rust → EVM, write | op `0x57` `OP_XLANE_WRITE` | writes into **one named EVM storage slot** |
+
+  All of it is synchronous, in-block, under the same proof. Lifelox uses the reads
+  and `0xA0`, wrapped in
+  [`PxcBridge.sol`](../contracts-solidity/contracts/dual/PxcBridge.sol).
 - **A pool side is an `Asset`**, not an address:
   ```solidity
   enum Lane { Solidity, Rust, Native }
@@ -28,8 +37,11 @@ Solidity↔Rust pair. It works because the chain exposes a **bridge precompile**
 
 ## The one rule that changes everything: no `approve` on the Rust lane
 
-Nothing can *pull* a Rust token. Every move is a **push by the holder**. So Lifelox
-uses the V2 "**transfer in, then call**" pattern:
+On a bridge write the Rust-lane actor is the EVM **`caller`** — both lanes share one
+address space, so a contract moves *its own* PXC and can never touch anyone else's.
+That is exactly why a pair can hold PXC, and exactly why a router cannot pull a
+user's. Nothing can *pull* a Rust token; every move is a **push by the holder**. So
+Lifelox uses the V2 "**transfer in, then call**" pattern:
 
 - **Solidity input** → the router pulls it with `transferFrom` (needs `approve`).
 - **Rust input** → the user pushes it to the **pair address first**, as a plain tx to
@@ -70,12 +82,20 @@ uses the V2 "**transfer in, then call**" pattern:
   else is signed — the pair address is predicted off-chain (CREATE2), so no
   `createPair` call is needed, and PEX needs no approve and no wrap. An ERC-20 side
   costs one `approve`, exactly like the EVM lane. **Swap** is the same shape.
-- **Why the Rust push cannot be merged into the same transaction:**
-  `PxcBridge.transfer20` moves PXC **from the caller**, so a contract can only ever
-  move its *own* PXC. The Rust lane has no `approve` and no delegated transfer, which
-  means no router can move a user's Rust tokens for them — the holder has to sign
-  that transfer. It is a property of the chain, not of this interface, and it is the
-  one transaction that cannot be removed. Everything else has been.
+- **Why the Rust push cannot be merged into the same transaction.** A transaction has
+  one destination, and the destination picks the lane — one transaction is one lane.
+  So for PXC to enter a pool, exactly one of these would have to hold:
+  1. *the user moves it* — a Rust-lane tx to `0x…0e12`, which therefore cannot also
+     call the router;
+  2. *the router moves it* — impossible, `0xA0` moves the caller's own balance and
+     there is no allowance or delegated transfer on that lane;
+  3. *a Rust-lane tx calls the router* — no such primitive: `0x54` only **reads** an
+     EVM slot and `0x57` writes **one named slot**, neither is a function call, so
+     neither can reach `mint()`.
+
+  Two signatures is therefore the floor for anything with a Rust side, and the UI
+  says so instead of hiding a second wallet prompt behind one button. Both can land
+  in the same block; they are still two signatures.
 - **Which side is token0, and where the pair lives**, are both decided by
   `AssetLib.key()` and recomputed off-chain (`frontend/src/lib/dual.ts`) — the second
   one matters because Rust tokens are pushed to the pair *before* it is deployed.
@@ -86,9 +106,50 @@ uses the V2 "**transfer in, then call**" pattern:
   one call creates a pool holding real PEX, swaps go in and out as PEX, adding later
   is still one call, a mismatched `msg.value` is rejected, and burning LP returns
   native PEX — with nothing stranded in the router.
+- **The two steps are shown as two steps**, numbered, with the second disabled until
+  the first confirms. If someone signs step 1 and walks away, the PXC is sitting at
+  the pair — not lost: the interface reads the pair's Rust balance against its
+  reserves, says how much is waiting, and step 2 still mints it. That check survives
+  a page reload, because it reads the chain rather than component state.
+- **Decimals are checked before a pool is seeded.** A Rust amount is a `u64`, so a
+  token's decimals cap how much of it can ever move — at 18 decimals that is about
+  **18 whole tokens**, which makes a pool meaningless (the chain already has one:
+  id `90909`, "Cat Coin", 18 decimals, whole supply reading as `0.00000000001`). The
+  pool form spells out the base units being sent and refuses amounts over `u64`.
 - **Withdrawing** works on both pair types the low-level V2 way — the LP tokens go
   back to the pair and `burn` pays each side out through its own lane. That is also
   the way out of a pool seeded at the wrong ratio.
+
+## What would make it one transaction — a chain change, not a DEX change
+
+The missing primitive is the Rust-lane equivalent of `approve`/`transferFrom`:
+
+```
+allowance[id][owner][spender]                       — a new Rust-lane mapping
+0xA3  transferFrom20(id, from, to, amount)          — alongside 0xA0 on the bridge
+        requires allowance[id][from][caller] >= amount, and decrements it
+```
+
+With that, a router could pull PXC the way it pulls an ERC-20, and **every** cross-lane
+action collapses to one call after a one-time approve. It belongs in `pexli-chain`, not
+here. Until it exists, do not work around it with a router that custodies user tokens
+"temporarily" — that turns a missing primitive into a place funds can be lost.
+
+## Live network
+
+```
+Chain ID   78901
+RPC        https://testrpc.pex.li
+Explorer   https://explorer.pex.li
+Rust VM    0x0000000000000000000000000000000000000e12
+Bridge     0x0000000000000000000000000000000000000e13
+
+LifeloxDualFactory  0x3B88f759bF8549aa9Adf96353ef26B152120e52E
+LifeloxDualRouter   0xd8E835e4BdE4D8AC52a128bcB3747cd41817b440
+```
+
+The interface defaults to those two; `VITE_LIFELOX_DUAL_FACTORY` /
+`VITE_LIFELOX_DUAL_ROUTER` override them for a different deployment.
 
 ## Deploy
 
@@ -119,7 +180,7 @@ into a pair, add the Solidity side, swap, read reserves).
 
 | Constraint | Why it matters |
 |---|---|
-| **Rust amounts are `u64`** | `PxcBridge.transfer20` reverts if `amount > 2^64-1`. With 18 decimals a u64 caps at ~18 whole tokens — **use 6–8 decimals** for Rust tokens. |
+| **Rust amounts are `u64`** | Every PXC amount is 8 bytes while Solidity carries `uint256`; `PxcBridge.transfer20` reverts above `2^64-1`. With 18 decimals that caps at ~18 whole tokens — **use 6–8 decimals** for Rust tokens, and keep the check on every path including reserves and outputs. |
 | **No events on the Rust lane** | `eth_getLogs` never sees a Rust transfer. Pool discovery / balances must **read state**, not watch logs. |
 | **Metadata is optional & write-once** | Absent metadata reads as empty name/symbol, decimals 0. Fall back to `PXC #id`; never render an empty symbol as real. |
 | **Metadata is read off the bridge, not RUSTVM storage** | `eth_getStorageAt` on `0x…0e12` only proves the id exists (admin slot) and holds balances. name/symbol/decimals come from `eth_call` to `0x…0e13`. |

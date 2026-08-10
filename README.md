@@ -118,9 +118,17 @@ and moves each side through its own lane (ERC-20 or the bridge). Because the Rus
 lane has no `approve`, it uses the V2 "transfer in, then call" pattern: the holder
 pushes the PXC side to the pair, then one `addLiquidity` call creates the pool and
 mints. **PEX is a pool side in its own right** — the pair holds native PEX, so nothing
-is wrapped. Deploy with `npm run deploy:dual`, then set `VITE_LIFELOX_DUAL_FACTORY`
-and `VITE_LIFELOX_DUAL_ROUTER`. Full guide, constraints
-(u64 amounts, no events, 6–8 decimals), and the on-chain test flow:
+is wrapped.
+
+- PEX ↔ token, token ↔ token: **one transaction**.
+- Anything with a Rust side: **two** — the push, then the router call. That is the
+  chain's floor, not a UI shortcut: the bridge moves PXC from the *caller* and the
+  Rust lane has no allowance, so nothing can move a user's PXC for them. The UI shows
+  it as two numbered steps rather than prompting twice behind one button.
+
+The cross-lane contracts are already deployed on the testnet and the app defaults to
+them. Full guide, constraints (u64 amounts, no events, 6–8 decimals), the on-chain test
+flow, and the one chain change that would make it one transaction:
 **[docs/RUST-POOLS.md](docs/RUST-POOLS.md)**.
 
 ## Tech used

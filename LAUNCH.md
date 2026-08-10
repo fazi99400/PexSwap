@@ -78,12 +78,20 @@ VITE_TOKEN_PXLI=0x...
 > If your node's gas estimation is strict, add `export GAS_LIMIT=9000000` before
 > `npm run deploy`.
 
-### A3. (Only for Rust-lane tokens) deploy the cross-lane AMM
+### A3. (Only for Rust-lane tokens) the cross-lane AMM
 
 The factory above is the plain EVM one: **every pool side must be a `0x` contract**, so
 a Rust-lane token (a numeric id) cannot be pooled on it — that pool needs the
-cross-lane contracts in `contracts-solidity/contracts/dual/`. They are already written;
-they just have to be deployed:
+cross-lane contracts in `contracts-solidity/contracts/dual/`.
+
+**These are already deployed on the pexli testnet**, and the interface defaults to them:
+
+```
+LifeloxDualFactory  0x3B88f759bF8549aa9Adf96353ef26B152120e52E
+LifeloxDualRouter   0xd8E835e4BdE4D8AC52a128bcB3747cd41817b440
+```
+
+So there is nothing to do here unless you want your own deployment:
 
 ```bash
 cd contracts-solidity

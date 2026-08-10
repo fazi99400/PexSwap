@@ -9,12 +9,13 @@ export const ADDRESSES = {
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
   wpex: (import.meta.env.VITE_WPEX ??
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
-  // Cross-lane factory (contracts/dual). Optional: leave unset and the UI simply
-  // lists the EVM-lane pools. When set, Rust-lane pools show up alongside them.
+  // Cross-lane factory + router (contracts/dual), already deployed on the pexli
+  // testnet by the chain owner. Env wins, so a different deployment just needs
+  // VITE_LIFELOX_DUAL_FACTORY / VITE_LIFELOX_DUAL_ROUTER.
   dualFactory: (import.meta.env.VITE_LIFELOX_DUAL_FACTORY ??
-    "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    "0x3B88f759bF8549aa9Adf96353ef26B152120e52E") as `0x${string}`,
   dualRouter: (import.meta.env.VITE_LIFELOX_DUAL_ROUTER ??
-    "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    "0xd8E835e4BdE4D8AC52a128bcB3747cd41817b440") as `0x${string}`,
 } as const;
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;

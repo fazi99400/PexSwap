@@ -334,7 +334,13 @@ export function Swap() {
         )}
       </div>
 
-      {step && <div className="msg msg-ok">{step} Approve each transaction in your wallet.</div>}
+      {dualMode && tokenIn.lane === "rust" && !step && (
+        <div className="subtle modal-note">
+          Two signatures: you send the {tokenIn.symbol} to the pool, then the router swaps it.
+          Nothing can move PXC on your behalf, so this cannot be one transaction.
+        </div>
+      )}
+      {step && <div className="msg msg-ok">{step} Approve the transaction in your wallet.</div>}
       {status.err && <div className="msg msg-error">{status.err}</div>}
       {status.ok && <div className="msg msg-ok">{status.ok}</div>}
 

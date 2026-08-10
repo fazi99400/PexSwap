@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useAccount, useWriteContract, useReadContract, useReadContracts } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { useAccount, useWriteContract, useReadContract, useReadContracts, usePublicClient } from "wagmi";
 import { readContract, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
 import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
@@ -21,7 +22,7 @@ import { TokenIcon, IconChevron, IconPlus, IconLayers } from "../components/Icon
 import { usePools, PoolInfo } from "../hooks/usePools";
 import { useDualPair } from "../hooks/useDualPair";
 import { assetArg, assetFor, sameAsset } from "../lib/dual";
-import { RUSTVM_ADDRESS, U64_MAX, encodeRustTransfer } from "../lib/rustvm";
+import { RUSTVM_ADDRESS, U64_MAX, encodeRustTransfer, fetchRustBalance } from "../lib/rustvm";
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
 const pairAddr = (t: Token): `0x${string}` => (isNative(t) ? ADDRESSES.wpex : t.address);
@@ -170,6 +171,7 @@ function NewPosition() {
   const { address, isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
   const { tokens: allTokens, importToken } = useTokenList();
+  const publicClient = usePublicClient();
 
   const [tokenA, setTokenA] = useState<Token>(NATIVE_PEX);
   const [tokenB, setTokenB] = useState<Token>(SECOND_TOKEN);
@@ -179,6 +181,11 @@ function NewPosition() {
   const [status, setStatus] = useState<{ ok?: string; err?: string }>({});
   // Cross-lane liquidity needs several transactions — show which one is running.
   const [step, setStep] = useState("");
+  // A Rust side is a push the user signs, then a router call. The chain gives no
+  // way to do both at once (the bridge moves PXC from the *caller*, and there is
+  // no allowance on that lane), so the two steps are shown as two steps rather
+  // than hidden behind one button that prompts twice.
+  const [pushed, setPushed] = useState<{ pair: `0x${string}`; key: string } | null>(null);
 
   const addrA = pairAddr(tokenA);
   const addrB = pairAddr(tokenB);
@@ -266,6 +273,37 @@ function NewPosition() {
       units: (amt as bigint).toLocaleString(),
     }));
 
+  // A Rust amount is a u64, so a token's decimals decide how much of it can ever
+  // move: at 18 decimals the ceiling is ~18 whole tokens, which makes a pool
+  // meaningless. Warn before the pool is seeded, not after the price looks insane.
+  const rustCeiling = [tokenA, tokenB]
+    .filter((t) => t.lane === "rust")
+    .map((t) => ({ symbol: t.symbol, decimals: t.decimals, max: Number(U64_MAX) / 10 ** t.decimals }))
+    .find((x) => x.max < 1000);
+
+  // Identifies this exact deposit, so a completed step 1 is not credited to a
+  // different pair or a changed amount.
+  const dealKey = `${tokenA.address}:${amtA}|${tokenB.address}:${amtB}`;
+
+  // A push that was signed but never followed by step 2 leaves the tokens at the
+  // pair. They are not lost — step 2 still mints them — so find them and say so,
+  // including after a reload, when component state is gone.
+  const rustLeg = tokenA.lane === "rust" ? tokenA : tokenB.lane === "rust" ? tokenB : undefined;
+  const { data: unclaimed, refetch: refetchUnclaimedQuery } = useQuery({
+    queryKey: ["unclaimed-push", dual.pairAddress, rustLeg?.id],
+    enabled: dualMode && !!publicClient && !!dual.pairAddress && !!rustLeg,
+    queryFn: async () => {
+      const sitting = await fetchRustBalance(publicClient!, BigInt(rustLeg!.id ?? 0), dual.pairAddress!);
+      const reserve = dual.reserves ? (tokenA.lane === "rust" ? dual.reserves.a : dual.reserves.b) : 0n;
+      return sitting > reserve ? sitting - reserve : 0n;
+    },
+    refetchInterval: 10000,
+  });
+  const refetchUnclaimed = async () => {
+    await refetchUnclaimedQuery();
+  };
+  const stepOneDone = (!!pushed && pushed.key === dealKey) || (unclaimed ?? 0n) > 0n;
+
   const nativeInDual = dualMode && (isNative(tokenA) || isNative(tokenB));
 
   const initialPrice =
@@ -305,28 +343,26 @@ function NewPosition() {
   }
 
   /**
-   * Cross-lane liquidity. There is no `approve` on the Rust lane, so a Rust side
-   * cannot be pulled: the holder pushes it to the pair first and the router
-   * measures what arrived (Uniswap-V2 "transfer in, then call"). That makes this
-   * a multi-step flow, and the pair must exist before we can push into it.
+   * Step 1 of a cross-lane deposit: the user sends the Rust side to the pair.
+   *
+   * This cannot be folded into the router call. A transaction has one
+   * destination and therefore one lane, the bridge moves PXC from the *caller*,
+   * and the Rust lane has no allowance — so nothing but the holder can move
+   * these tokens. Two signatures is the chain's floor, not a UI shortcut.
+   *
+   * The pair does not have to exist yet: its CREATE2 address is known in
+   * advance, and the router deploys it when it mints.
    */
-  async function submitDual() {
-    const dl = deadline(20);
-    const sides = [
-      [tokenA, amtAWei],
-      [tokenB, amtBWei],
-    ] as const;
-
-    // 1. the pair address. A pool that does not exist yet still has a known
-    //    CREATE2 address, so the Rust push can go straight to it and the router
-    //    creates the pair in the same call that mints — one transaction fewer.
+  async function pushRustSides() {
     const pair = dual.pairAddress;
     if (!pair) throw new Error("Could not resolve the pool address");
 
-    // 1b. push each Rust side into the pair (a plain tx to the Rust-VM account).
-    for (const [t, amt] of sides) {
+    for (const [t, amt] of [
+      [tokenA, amtAWei],
+      [tokenB, amtBWei],
+    ] as const) {
       if (t.lane !== "rust") continue;
-      setStep(`Sending ${t.symbol} to the pool…`);
+      setStep(`Sending ${t.symbol}…`);
       const hash = await sendTransaction(wagmiConfig, {
         to: RUSTVM_ADDRESS,
         data: encodeRustTransfer(BigInt(t.id ?? 0), pair, amt),
@@ -334,14 +370,23 @@ function NewPosition() {
       });
       await waitForTransactionReceipt(wagmiConfig, { hash });
     }
+    setPushed({ pair, key: dealKey });
+    await refetchUnclaimed();
+  }
 
-    // 2. Solidity sides are pulled by the router — allowance first. PEX needs
-    //    none: it travels as msg.value straight into the pair.
+  /**
+   * Step 2: the router creates the pair if needed, takes the Solidity/PEX side,
+   * and mints. The pair measures what actually arrived for every side (V2
+   * "transfer in, then call"), so the amounts passed here are a request, not a
+   * claim — a push that landed short still mints against the real balance.
+   */
+  async function finishDual() {
+    const dl = deadline(20);
+
     setStep("Approving…");
     await approveForDual(tokenA, amtAWei);
     await approveForDual(tokenB, amtBWei);
 
-    // 3. create-if-needed and mint the LP position — one call, PEX included.
     setStep(creating ? "Creating and seeding the pool…" : "Adding liquidity…");
     const pexValue = isNative(tokenA) ? amtAWei : isNative(tokenB) ? amtBWei : 0n;
     const hash = await writeContractAsync({
@@ -352,7 +397,23 @@ function NewPosition() {
       value: pexValue,
     });
     await waitForTransactionReceipt(wagmiConfig, { hash });
+    setPushed(null);
     await dual.refetchPair();
+    await refetchUnclaimed();
+  }
+
+  /** Run one of the two cross-lane steps, with the shared status handling. */
+  async function runStep(fn: () => Promise<void>, done: string) {
+    if (!address) return;
+    setStatus({});
+    try {
+      await fn();
+      setStatus({ ok: done });
+    } catch (e: any) {
+      setStatus({ err: e?.shortMessage ?? e?.message ?? "Transaction failed" });
+    } finally {
+      setStep("");
+    }
   }
 
   async function submit() {
@@ -362,9 +423,9 @@ function NewPosition() {
     const min = (x: bigint) => (x * 990n) / 1000n; // 1% tolerance on a new pool
     try {
       if (dualMode) {
-        await submitDual();
+        // No Rust side, so the whole thing is one router call.
+        await finishDual();
         setStatus({ ok: creating ? "Pool created and seeded" : "Liquidity added" });
-        setStep("");
         setAmtA("");
         setAmtB("");
         return;
@@ -420,12 +481,10 @@ function NewPosition() {
           ? "Pick two different tokens."
           : blockedRust
           ? "Rust-lane pools need the cross-lane contracts: deploy them (npm run deploy:dual) and set VITE_LIFELOX_DUAL_FACTORY + VITE_LIFELOX_DUAL_ROUTER."
-          : nativeInDual && creating
-          ? "New cross-lane pool. PEX is pooled as PEX — two transactions: the PXC push, then the liquidity."
           : overU64
           ? "Rust-lane amounts are u64 — lower the amount (or use 6–8 decimals for the Rust token)."
-          : dualMode && creating
-          ? "New cross-lane pool. Creating it takes a few transactions: the pair, the PXC push into it, then the liquidity."
+          : dualMode
+          ? "A Rust side takes two signatures: you send the PXC to the pool, then the router adds the liquidity. Nothing can move PXC on your behalf, so this cannot be one transaction."
           : creating
           ? "New pool — you are the first provider and set the initial price."
           : `Adding to the existing ${tokenA.symbol} / ${tokenB.symbol} pool. Amount is held to the current ratio.`}
@@ -474,6 +533,16 @@ function NewPosition() {
         </div>
       ))}
 
+      {rustCeiling && (
+        <div className="msg msg-error">
+          {rustCeiling.symbol} has {rustCeiling.decimals} decimals, and a Rust-lane transfer is
+          a u64 — so at most{" "}
+          {rustCeiling.max.toLocaleString(undefined, { maximumSignificantDigits: 4 })} of it can
+          ever move. A pool on this token can only ever hold dust; 6–8 decimals is the workable
+          range on this lane.
+        </div>
+      )}
+
       {initialPrice && (
         <div className="info-row">
           <span>Initial price</span>
@@ -481,25 +550,67 @@ function NewPosition() {
         </div>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        <button className="btn btn-primary" onClick={submit} disabled={disabled}>
-          {!isConnected
-            ? "Connect wallet"
-            : blockedRust
-            ? "Cross-lane contracts not deployed"
-            : step
-            ? step
-            : isPending
-            ? "Confirming…"
-            : amtAWei === 0n || amtBWei === 0n
-            ? "Enter amounts"
-            : creating
-            ? "Create Pool"
-            : "Add Liquidity"}
-        </button>
-      </div>
+      {rustSide && dualDeployed ? (
+        <div className="steps" style={{ marginTop: 12 }}>
+          <div className={`step-row ${stepOneDone ? "done" : ""}`}>
+            <span className="step-num">1</span>
+            <div className="step-body">
+              <div className="step-title">Send the PXC to the pool</div>
+              <div className="subtle">
+                {stepOneDone
+                  ? `${fmt(unclaimed ?? 0n, rustLeg?.decimals ?? 0, 8)} ${rustLeg?.symbol ?? ""} is waiting at the pool`
+                  : "A transfer only you can sign — the Rust lane has no allowance."}
+              </div>
+            </div>
+            <button
+              className="btn btn-ghost step-btn"
+              onClick={() => runStep(pushRustSides, "Sent — now add the liquidity")}
+              disabled={disabled || stepOneDone}
+            >
+              {step && !stepOneDone ? step : stepOneDone ? "Sent" : "Send"}
+            </button>
+          </div>
 
-      {step && <div className="msg msg-ok">{step} Approve each transaction in your wallet.</div>}
+          <div className={`step-row ${stepOneDone ? "" : "waiting"}`}>
+            <span className="step-num">2</span>
+            <div className="step-body">
+              <div className="step-title">{creating ? "Create the pool" : "Add the liquidity"}</div>
+              <div className="subtle">
+                {stepOneDone ? "One router call — it mints your LP." : "Enabled once step 1 confirms."}
+              </div>
+            </div>
+            <button
+              className="btn btn-primary step-btn"
+              onClick={() =>
+                runStep(finishDual, creating ? "Pool created and seeded" : "Liquidity added")
+              }
+              disabled={!isConnected || !!step || !stepOneDone}
+            >
+              {step && stepOneDone ? step : creating ? "Create Pool" : "Add Liquidity"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          <button className="btn btn-primary" onClick={submit} disabled={disabled}>
+            {!isConnected
+              ? "Connect wallet"
+              : blockedRust
+              ? "Cross-lane contracts not deployed"
+              : step
+              ? step
+              : isPending
+              ? "Confirming…"
+              : amtAWei === 0n || amtBWei === 0n
+              ? "Enter amounts"
+              : creating
+              ? "Create Pool"
+              : "Add Liquidity"}
+          </button>
+        </div>
+      )}
+
+      {step && <div className="msg msg-ok">{step} Approve the transaction in your wallet.</div>}
       {status.err && <div className="msg msg-error">{status.err}</div>}
       {status.ok && <div className="msg msg-ok">{status.ok}</div>}
 

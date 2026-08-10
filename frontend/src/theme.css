@@ -266,6 +266,26 @@ svg { display: block; }
 .pair-icons > *:last-child { margin-left: -9px; }
 .pair-name { font-weight: 700; }
 .pool-share { text-align: right; }
+
+/* Two-step cross-lane deposit: the Rust push, then the router call. Shown as
+   two rows because it really is two signatures — see docs/RUST-POOLS.md. */
+.steps { display: flex; flex-direction: column; gap: 8px; }
+.step-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--card-2);
+}
+.step-row.waiting { opacity: 0.55; }
+.step-row.done { border-color: var(--pex-orange); }
+.step-num {
+  flex: 0 0 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
+  background: var(--pex-orange); color: #fff;
+}
+.step-body { flex: 1; min-width: 0; }
+.step-title { font-weight: 600; font-size: 14px; }
+.step-btn { width: auto; padding: 6px 14px; font-size: 13px; }
 /* Withdraw sits under the share figure; small, quiet, never the main action. */
 .pool-remove { margin-top: 6px; padding: 4px 10px; font-size: 12px; width: auto; }
 .empty {
