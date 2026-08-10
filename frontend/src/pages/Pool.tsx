@@ -198,6 +198,10 @@ function NewPosition() {
   const overU64 =
     (tokenA.lane === "rust" && amtAWei > U64_MAX) || (tokenB.lane === "rust" && amtBWei > U64_MAX);
 
+  // The cross-lane router has no payable path, so it cannot wrap native PEX the
+  // way addLiquidityPEX does — the WPEX side has to be a real ERC-20 balance.
+  const nativeInDual = dualMode && (isNative(tokenA) || isNative(tokenB));
+
   const initialPrice =
     creating && amtAWei > 0n && amtBWei > 0n
       ? (Number(amtB) / Number(amtA)).toLocaleString(undefined, { maximumSignificantDigits: 6 })
@@ -331,6 +335,7 @@ function NewPosition() {
     isPending ||
     !!step ||
     blockedRust ||
+    nativeInDual ||
     overU64 ||
     amtAWei === 0n ||
     amtBWei === 0n ||
@@ -343,6 +348,8 @@ function NewPosition() {
           ? "Pick two different tokens."
           : blockedRust
           ? "Rust-lane pools need the cross-lane contracts: deploy them (npm run deploy:dual) and set VITE_LIFELOX_DUAL_FACTORY + VITE_LIFELOX_DUAL_ROUTER."
+          : nativeInDual
+          ? "A cross-lane pool can't wrap PEX for you — pick WPEX (wrap your PEX first) instead of native PEX."
           : overU64
           ? "Rust-lane amounts are u64 — lower the amount (or use 6–8 decimals for the Rust token)."
           : dualMode && creating
@@ -396,6 +403,8 @@ function NewPosition() {
             ? "Connect wallet"
             : blockedRust
             ? "Cross-lane contracts not deployed"
+            : nativeInDual
+            ? "Use WPEX, not native PEX"
             : step
             ? step
             : isPending

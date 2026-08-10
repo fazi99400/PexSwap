@@ -110,6 +110,8 @@ export function Swap() {
 
   const overU64 = tokenIn.lane === "rust" && amountInWei > U64_MAX;
   const blockedRust = rustSide && !dualDeployed;
+  // The cross-lane router has no payable path — it cannot wrap/unwrap native PEX.
+  const nativeInDual = dualMode && (isNative(tokenIn) || isNative(tokenOut));
 
   const priceImpactLabel = useMemo(() => {
     if (!amountOutWei || amountInWei === 0n) return "—";
@@ -304,6 +306,10 @@ export function Swap() {
         ) : blockedRust ? (
           <button className="btn btn-primary" disabled>
             Cross-lane contracts not deployed
+          </button>
+        ) : nativeInDual ? (
+          <button className="btn btn-primary" disabled>
+            Use WPEX, not native PEX
           </button>
         ) : overU64 ? (
           <button className="btn btn-primary" disabled>
