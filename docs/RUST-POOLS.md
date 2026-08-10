@@ -61,9 +61,12 @@ uses the V2 "**transfer in, then call**" pattern:
 - **Creating and swapping cross-lane pools** needs the dual contracts deployed and
   `VITE_LIFELOX_DUAL_FACTORY` + `VITE_LIFELOX_DUAL_ROUTER` set (see LAUNCH.md §A3).
   With them, picking a Rust token in **Pool → New Position** runs the full sequence —
-  `createPair`, the PXC push into the pair, the approve for any Solidity side, then
-  `router.addLiquidity` — showing which transaction is in flight; **Swap** does the same
-  (push, then `swapExactInput`) and quotes from the pair's reserves. Without them the UI
+  wrap native PEX to WPEX if a side is PEX, `createPair`, the PXC push into the pair,
+  the approve for any Solidity side, then `router.addLiquidity` — showing which
+  transaction is in flight; **Swap** does the same (wrap, push, `swapExactInput`, and
+  an unwrap back to PEX when the output side is native) and quotes from the reserves.
+  The cross-lane router has no payable path, which is why the wrap/unwrap is done by
+  the interface rather than by the contract. Without them the UI
   says which contracts are missing instead of sending a transaction that cannot succeed.
 - **Which side is token0** is decided by `AssetLib.key()`. The interface recomputes that
   key off-chain (`frontend/src/lib/dual.ts`), so it is pinned to the contract by

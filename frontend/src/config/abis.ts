@@ -31,6 +31,13 @@ export const FACTORY_ABI = [
 
 // Cross-lane (dual) factory + pair. A pool side here is an Asset — a lane tag
 // plus either a 0x address (Solidity) or a numeric id (Rust) — not an address.
+// WPEX — native PEX wrapped as an ERC-20. The cross-lane router only moves
+// ERC-20s, so a native-PEX side has to be wrapped before it can be pooled.
+export const WPEX_ABI = [
+  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
+  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "wad", type: "uint256" }], outputs: [] },
+] as const;
+
 const ASSET = (name: string) =>
   ({
     name,

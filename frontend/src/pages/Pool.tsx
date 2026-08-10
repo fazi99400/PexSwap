@@ -5,7 +5,15 @@ import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
 import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
 import { ADDRESSES, ZERO_ADDRESS, isConfigured } from "../config/addresses";
-import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI, DUAL_FACTORY_ABI, DUAL_ROUTER_ABI } from "../config/abis";
+import {
+  ERC20_ABI,
+  ROUTER_ABI,
+  FACTORY_ABI,
+  PAIR_ABI,
+  DUAL_FACTORY_ABI,
+  DUAL_ROUTER_ABI,
+  WPEX_ABI,
+} from "../config/abis";
 import { fmt, parse, deadline, shortAddr } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
@@ -198,9 +206,10 @@ function NewPosition() {
   const overU64 =
     (tokenA.lane === "rust" && amtAWei > U64_MAX) || (tokenB.lane === "rust" && amtBWei > U64_MAX);
 
-  // The cross-lane router has no payable path, so it cannot wrap native PEX the
-  // way addLiquidityPEX does — the WPEX side has to be a real ERC-20 balance.
+  // A native-PEX side in a cross-lane pool is wrapped to WPEX by the flow below,
+  // so it only needs WPEX to actually be deployed.
   const nativeInDual = dualMode && (isNative(tokenA) || isNative(tokenB));
+  const wpexMissing = nativeInDual && !isConfigured(ADDRESSES.wpex);
 
   const initialPrice =
     creating && amtAWei > 0n && amtBWei > 0n
@@ -221,6 +230,22 @@ function NewPosition() {
     }
   }
 
+  /** Allowance for the cross-lane router, where native PEX is really WPEX. */
+  async function approveForDual(t: Token, amt: bigint) {
+    if (t.lane === "rust") return; // nothing to approve on the Rust lane
+    const token = isNative(t) ? ADDRESSES.wpex : t.address;
+    const a = await readAllowance(token, address!, ADDRESSES.dualRouter);
+    if (a < amt) {
+      const hash = await writeContractAsync({
+        address: token,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [ADDRESSES.dualRouter, maxUint256],
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+    }
+  }
+
   /**
    * Cross-lane liquidity. There is no `approve` on the Rust lane, so a Rust side
    * cannot be pulled: the holder pushes it to the pair first and the router
@@ -229,6 +254,24 @@ function NewPosition() {
    */
   async function submitDual() {
     const dl = deadline(20);
+    const sides = [
+      [tokenA, amtAWei],
+      [tokenB, amtBWei],
+    ] as const;
+
+    // 0. the cross-lane router moves ERC-20s only — it has no payable path, so
+    //    native PEX has to become WPEX first.
+    for (const [t, amt] of sides) {
+      if (!isNative(t)) continue;
+      setStep("Wrapping PEX…");
+      const hash = await writeContractAsync({
+        address: ADDRESSES.wpex,
+        abi: WPEX_ABI,
+        functionName: "deposit",
+        value: amt,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+    }
 
     // 1. the pair — created first so we have an address to push Rust tokens to.
     let pair = dual.pair;
@@ -251,10 +294,7 @@ function NewPosition() {
     }
 
     // 2. push each Rust side into the pair (a plain tx to the Rust-VM account).
-    for (const [t, amt] of [
-      [tokenA, amtAWei],
-      [tokenB, amtBWei],
-    ] as const) {
+    for (const [t, amt] of sides) {
       if (t.lane !== "rust") continue;
       setStep(`Sending ${t.symbol} to the pool…`);
       const hash = await sendTransaction(wagmiConfig, {
@@ -265,10 +305,10 @@ function NewPosition() {
       await waitForTransactionReceipt(wagmiConfig, { hash });
     }
 
-    // 3. Solidity sides are pulled by the router, so they need an allowance.
+    // 3. Solidity sides (WPEX included) are pulled by the router — allowance first.
     setStep("Approving…");
-    await approveIfNeeded(tokenA, amtAWei, ADDRESSES.dualRouter);
-    await approveIfNeeded(tokenB, amtBWei, ADDRESSES.dualRouter);
+    await approveForDual(tokenA, amtAWei);
+    await approveForDual(tokenB, amtBWei);
 
     // 4. mint the LP position.
     setStep(creating ? "Seeding the pool…" : "Adding liquidity…");
@@ -335,7 +375,7 @@ function NewPosition() {
     isPending ||
     !!step ||
     blockedRust ||
-    nativeInDual ||
+    wpexMissing ||
     overU64 ||
     amtAWei === 0n ||
     amtBWei === 0n ||
@@ -348,8 +388,10 @@ function NewPosition() {
           ? "Pick two different tokens."
           : blockedRust
           ? "Rust-lane pools need the cross-lane contracts: deploy them (npm run deploy:dual) and set VITE_LIFELOX_DUAL_FACTORY + VITE_LIFELOX_DUAL_ROUTER."
-          : nativeInDual
-          ? "A cross-lane pool can't wrap PEX for you — pick WPEX (wrap your PEX first) instead of native PEX."
+          : wpexMissing
+          ? "Set VITE_WPEX — a cross-lane pool pools native PEX as WPEX."
+          : nativeInDual && creating
+          ? "New cross-lane pool. Your PEX is wrapped to WPEX first, then: the pair, the PXC push into it, and the liquidity."
           : overU64
           ? "Rust-lane amounts are u64 — lower the amount (or use 6–8 decimals for the Rust token)."
           : dualMode && creating
@@ -403,8 +445,8 @@ function NewPosition() {
             ? "Connect wallet"
             : blockedRust
             ? "Cross-lane contracts not deployed"
-            : nativeInDual
-            ? "Use WPEX, not native PEX"
+            : wpexMissing
+            ? "WPEX address not set"
             : step
             ? step
             : isPending
