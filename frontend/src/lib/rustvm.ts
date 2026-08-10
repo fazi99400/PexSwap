@@ -24,6 +24,7 @@ import {
   numberToBytes,
   bytesToHex,
   hexToBytes,
+  bytesToBigInt,
   toBytes,
   pad,
   getAddress,
@@ -79,7 +80,21 @@ export interface RustReader {
   getStorageAt(args: { address: Address; slot: Hex }): Promise<Hex | undefined>;
 }
 
-/** Decode a right-padded utf-8 bytes32 word ("PXG\0\0…") into a clean string. */
+const clean = (text: string) => text.replace(/[\u0000-\u001f\u007f\ufffd]/g, "").trim();
+const utf8 = (bytes: Uint8Array) => {
+  try {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * Decode a metadata word into a string. The documented shape is a right-padded
+ * utf-8 `bytes32` ("PXG\0\0…"), but a node may answer an ABI-encoded dynamic
+ * `string` (offset | length | data) instead — decoding that as bytes32 would read
+ * the 0x20 offset word and come back empty, so both shapes are handled here.
+ */
 export function bytes32ToString(word?: Hex): string {
   if (!word || word === "0x") return "";
   let bytes: Uint8Array;
@@ -88,61 +103,107 @@ export function bytes32ToString(word?: Hex): string {
   } catch {
     return "";
   }
-  // The word is right-padded with zero bytes; the string ends at the first one.
-  const end = bytes.indexOf(0);
-  const slice = bytes.slice(0, end === -1 ? bytes.length : end);
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
-  } catch {
-    return "";
+
+  // ABI-encoded string: 32-byte offset (0x20), 32-byte length, then the data.
+  if (bytes.length >= 64 && Number(bytesToBigInt(bytes.slice(0, 32))) === 32) {
+    const len = Number(bytesToBigInt(bytes.slice(32, 64)));
+    if (len === 0) return "";
+    if (len <= bytes.length - 64) return clean(utf8(bytes.slice(64, 64 + len)));
   }
-  // Drop control characters / replacement chars a half-written slot could carry.
-  return text.replace(/[\u0000-\u001f\u007f\ufffd]/g, "").trim();
+
+  // bytes32 (or any raw run of utf-8 bytes): the string ends at the first zero.
+  const end = bytes.indexOf(0);
+  return clean(utf8(bytes.slice(0, end === -1 ? bytes.length : end)));
 }
 
 export interface RustMeta {
   symbol: string;
   name: string;
   decimals: number;
-  /** True when the bridge actually returned a symbol or name for this id. */
+  /** True when the chain actually returned a symbol or name for this id. */
   hasMetadata: boolean;
+  /** Which account answered — useful when debugging a chain without a bridge. */
+  source?: Address;
 }
 
-const bridgeCall = async (client: RustReader, op: number, id: bigint): Promise<Hex | undefined> => {
+/** Calldata for a metadata read: selector(1) | id(8 BE). */
+export const encodeMetaRead = (op: number, id: bigint): Hex =>
+  bytesToHex(concatBytes([Uint8Array.of(op & 0xff), u64be(id)]));
+
+const readAt = async (client: RustReader, to: Address, op: number, id: bigint): Promise<Hex | undefined> => {
   try {
-    const res = await client.call({
-      to: PXC_BRIDGE_ADDRESS,
-      data: bytesToHex(concatBytes([Uint8Array.of(op), u64be(id)])),
-    });
-    return res?.data;
+    const res = await client.call({ to, data: encodeMetaRead(op, id) });
+    return res?.data && res.data !== "0x" ? res.data : undefined;
   } catch {
-    // No bridge on this RPC / no metadata for this id — treated as "unknown".
+    // No such precompile on this RPC / no metadata for this id.
     return undefined;
   }
 };
 
-/** Read name + symbol + decimals of a rust token id through the bridge. */
-export async function fetchRustMeta(client: RustReader, id: bigint): Promise<RustMeta> {
-  const [symWord, nameWord, decWord] = await Promise.all([
-    bridgeCall(client, OP_SYMBOL, id),
-    bridgeCall(client, OP_NAME, id),
-    bridgeCall(client, OP_DECIMALS, id),
-  ]);
+const toDecimals = (word?: Hex): number => {
+  if (!word || word === "0x") return 0;
+  try {
+    const d = Number(BigInt(word));
+    return Number.isFinite(d) && d >= 0 && d <= 36 ? d : 0;
+  } catch {
+    return 0;
+  }
+};
 
-  const symbol = bytes32ToString(symWord);
-  const name = bytes32ToString(nameWord);
-  let decimals = 0;
-  if (decWord && decWord !== "0x") {
-    try {
-      const d = Number(BigInt(decWord));
-      if (Number.isFinite(d) && d >= 0 && d <= 36) decimals = d;
-    } catch {
-      decimals = 0;
+/**
+ * Read name + symbol + decimals of a rust token id.
+ *
+ * The bridge precompile is the documented source. Some pexli builds answer the
+ * same selectors on the RUSTVM account itself, so if the bridge says nothing we
+ * ask RUSTVM before giving up — one extra eth_call, and the difference between a
+ * real ticker and a "PXC #id" placeholder on a chain without the bridge.
+ */
+export async function fetchRustMeta(client: RustReader, id: bigint): Promise<RustMeta> {
+  for (const source of [PXC_BRIDGE_ADDRESS, RUSTVM_ADDRESS] as const) {
+    const [symWord, nameWord, decWord] = await Promise.all([
+      readAt(client, source, OP_SYMBOL, id),
+      readAt(client, source, OP_NAME, id),
+      readAt(client, source, OP_DECIMALS, id),
+    ]);
+    const symbol = bytes32ToString(symWord);
+    const name = bytes32ToString(nameWord);
+    const decimals = toDecimals(decWord);
+    if (symbol || name || decimals) {
+      return { symbol, name, decimals, hasMetadata: !!symbol || !!name, source };
     }
   }
+  return { symbol: "", name: "", decimals: 0, hasMetadata: false };
+}
 
-  return { symbol, name, decimals, hasMetadata: !!symbol || !!name };
+/** A holder's balance of a rust token, straight from the RUSTVM balance slot. */
+export async function fetchRustBalance(
+  client: RustReader,
+  id: bigint,
+  holder: Address,
+  ns: number = NS_PXC20
+): Promise<bigint> {
+  try {
+    const raw = await client.getStorageAt({ address: RUSTVM_ADDRESS, slot: balanceSlot(ns, id, holder) });
+    return raw && raw !== "0x" ? BigInt(raw) : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+/** Rust-lane PXC-20 transfer opcode — a push by the holder (there is no approve). */
+export const OP_XFER_20 = 0x21;
+export const U64_MAX = 2n ** 64n - 1n;
+
+/**
+ * Calldata for "send `amount` of rust token `id` to `to`": op(1) | id(8) | to(20)
+ * | amount(8 BE), sent as a plain transaction to the RUSTVM account. This is how
+ * a Rust side is funded into a pair before calling the cross-lane router.
+ */
+export function encodeRustTransfer(id: bigint, to: Address, amount: bigint): Hex {
+  if (amount < 0n || amount > U64_MAX) throw new Error("rust amounts are u64");
+  return bytesToHex(
+    concatBytes([Uint8Array.of(OP_XFER_20), u64be(id), toBytes(pad(to, { size: 20 })), u64be(amount)])
+  );
 }
 
 export interface RustTokenInfo extends RustMeta {

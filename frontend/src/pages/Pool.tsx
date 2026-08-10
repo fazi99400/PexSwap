@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { useAccount, useWriteContract, useReadContract, useReadContracts } from "wagmi";
-import { readContract } from "wagmi/actions";
+import { readContract, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
 import { maxUint256 } from "viem";
 import { wagmiConfig } from "../config/wagmi";
 import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
-import { ADDRESSES, isConfigured } from "../config/addresses";
-import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI } from "../config/abis";
+import { ADDRESSES, ZERO_ADDRESS, isConfigured } from "../config/addresses";
+import { ERC20_ABI, ROUTER_ABI, FACTORY_ABI, PAIR_ABI, DUAL_FACTORY_ABI, DUAL_ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline, shortAddr } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, IconChevron, IconPlus, IconLayers } from "../components/Icons";
 import { usePools, PoolInfo } from "../hooks/usePools";
+import { useDualPair } from "../hooks/useDualPair";
+import { assetArg, assetFor, sameAsset } from "../lib/dual";
+import { RUSTVM_ADDRESS, U64_MAX, encodeRustTransfer } from "../lib/rustvm";
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
 const pairAddr = (t: Token): `0x${string}` => (isNative(t) ? ADDRESSES.wpex : t.address);
@@ -119,12 +122,22 @@ function NewPosition() {
   const [amtB, setAmtB] = useState("");
   const [picking, setPicking] = useState<null | "a" | "b">(null);
   const [status, setStatus] = useState<{ ok?: string; err?: string }>({});
+  // Cross-lane liquidity needs several transactions — show which one is running.
+  const [step, setStep] = useState("");
 
   const addrA = pairAddr(tokenA);
   const addrB = pairAddr(tokenB);
-  // Rust-lane sides live on the cross-lane router (contracts/dual), which this
-  // form does not drive — say so instead of sending a doomed EVM transaction.
+
+  // A Rust side cannot live on the EVM factory (it has no 0x contract), so those
+  // pools go through the cross-lane factory/router in contracts/dual.
   const rustSide = tokenA.lane === "rust" || tokenB.lane === "rust";
+  const dualDeployed = isConfigured(ADDRESSES.dualFactory) && isConfigured(ADDRESSES.dualRouter);
+  const dualMode = rustSide && dualDeployed;
+
+  const assetA = useMemo(() => assetFor(tokenA, ADDRESSES.wpex), [tokenA]);
+  const assetB = useMemo(() => assetFor(tokenB, ADDRESSES.wpex), [tokenB]);
+  const sameSide = rustSide ? sameAsset(assetA, assetB) : addrA === addrB;
+  const dual = useDualPair(dualMode ? assetA : undefined, dualMode ? assetB : undefined);
 
   // Does the pool already exist?
   const { data: existingPair } = useReadContract({
@@ -132,7 +145,7 @@ function NewPosition() {
     abi: FACTORY_ABI,
     functionName: "getPair",
     args: [addrA, addrB],
-    query: { enabled: addrA !== addrB },
+    query: { enabled: !rustSide && addrA !== addrB },
   });
   const poolAddr = (existingPair as `0x${string}` | undefined) ?? undefined;
   const poolExists =
@@ -150,6 +163,12 @@ function NewPosition() {
   });
 
   const ratioBperA = useMemo(() => {
+    // Cross-lane pools keep their reserves on the dual pair.
+    if (dualMode) {
+      const r = dual.reserves;
+      if (!r || r.a === 0n || r.b === 0n) return undefined;
+      return { reserveA: r.a, reserveB: r.b };
+    }
     if (!poolExists || !poolData) return undefined;
     const res = poolData[0]?.result as readonly [bigint, bigint, number] | undefined;
     const t0 = poolData[1]?.result as string | undefined;
@@ -158,7 +177,7 @@ function NewPosition() {
     const reserveA = aIs0 ? res[0] : res[1];
     const reserveB = aIs0 ? res[1] : res[0];
     return { reserveA, reserveB };
-  }, [poolExists, poolData, addrA]);
+  }, [dualMode, dual.reserves, poolExists, poolData, addrA]);
 
   // When adding to an existing pool, amount B is derived from amount A.
   function onAmtA(v: string) {
@@ -173,24 +192,90 @@ function NewPosition() {
 
   const amtAWei = parse(amtA, tokenA.decimals);
   const amtBWei = parse(amtB, tokenB.decimals);
-  const creating = !poolExists || !ratioBperA;
+  const creating = dualMode ? !dual.exists || !ratioBperA : !poolExists || !ratioBperA;
+
+  // Rust-lane amounts are u64 on this chain — say so before the tx reverts.
+  const overU64 =
+    (tokenA.lane === "rust" && amtAWei > U64_MAX) || (tokenB.lane === "rust" && amtBWei > U64_MAX);
 
   const initialPrice =
     creating && amtAWei > 0n && amtBWei > 0n
       ? (Number(amtB) / Number(amtA)).toLocaleString(undefined, { maximumSignificantDigits: 6 })
       : undefined;
 
-  async function approveIfNeeded(t: Token, amt: bigint) {
-    if (isNative(t)) return;
-    const a = await readAllowance(t.address, address!, ADDRESSES.router);
+  async function approveIfNeeded(t: Token, amt: bigint, spender: `0x${string}` = ADDRESSES.router) {
+    if (isNative(t) || t.lane === "rust") return;
+    const a = await readAllowance(t.address, address!, spender);
     if (a < amt) {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: t.address,
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [ADDRESSES.router, maxUint256],
+        args: [spender, maxUint256],
       });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
     }
+  }
+
+  /**
+   * Cross-lane liquidity. There is no `approve` on the Rust lane, so a Rust side
+   * cannot be pulled: the holder pushes it to the pair first and the router
+   * measures what arrived (Uniswap-V2 "transfer in, then call"). That makes this
+   * a multi-step flow, and the pair must exist before we can push into it.
+   */
+  async function submitDual() {
+    const dl = deadline(20);
+
+    // 1. the pair — created first so we have an address to push Rust tokens to.
+    let pair = dual.pair;
+    if (!pair) {
+      setStep("Creating the pool…");
+      const hash = await writeContractAsync({
+        address: ADDRESSES.dualFactory,
+        abi: DUAL_FACTORY_ABI,
+        functionName: "createPair",
+        args: [assetArg(assetA), assetArg(assetB)],
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+      pair = (await readContract(wagmiConfig, {
+        address: ADDRESSES.dualFactory,
+        abi: DUAL_FACTORY_ABI,
+        functionName: "getPair",
+        args: [assetArg(assetA), assetArg(assetB)],
+      })) as `0x${string}`;
+      if (!pair || pair === ZERO_ADDRESS) throw new Error("Pool was not created");
+    }
+
+    // 2. push each Rust side into the pair (a plain tx to the Rust-VM account).
+    for (const [t, amt] of [
+      [tokenA, amtAWei],
+      [tokenB, amtBWei],
+    ] as const) {
+      if (t.lane !== "rust") continue;
+      setStep(`Sending ${t.symbol} to the pool…`);
+      const hash = await sendTransaction(wagmiConfig, {
+        to: RUSTVM_ADDRESS,
+        data: encodeRustTransfer(BigInt(t.id ?? 0), pair, amt),
+        value: 0n,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+    }
+
+    // 3. Solidity sides are pulled by the router, so they need an allowance.
+    setStep("Approving…");
+    await approveIfNeeded(tokenA, amtAWei, ADDRESSES.dualRouter);
+    await approveIfNeeded(tokenB, amtBWei, ADDRESSES.dualRouter);
+
+    // 4. mint the LP position.
+    setStep(creating ? "Seeding the pool…" : "Adding liquidity…");
+    const hash = await writeContractAsync({
+      address: ADDRESSES.dualRouter,
+      abi: DUAL_ROUTER_ABI,
+      functionName: "addLiquidity",
+      args: [assetArg(assetA), assetArg(assetB), amtAWei, amtBWei, address!, dl],
+    });
+    await waitForTransactionReceipt(wagmiConfig, { hash });
+    await dual.refetchPair();
   }
 
   async function submit() {
@@ -199,6 +284,15 @@ function NewPosition() {
     const dl = deadline(20);
     const min = (x: bigint) => (x * 990n) / 1000n; // 1% tolerance on a new pool
     try {
+      if (dualMode) {
+        await submitDual();
+        setStatus({ ok: creating ? "Pool created and seeded" : "Liquidity added" });
+        setStep("");
+        setAmtA("");
+        setAmtB("");
+        return;
+      }
+
       await approveIfNeeded(tokenA, amtAWei);
       await approveIfNeeded(tokenB, amtBWei);
 
@@ -225,20 +319,34 @@ function NewPosition() {
       setAmtA("");
       setAmtB("");
     } catch (e: any) {
-      setStatus({ err: e?.shortMessage ?? "Transaction failed" });
+      setStatus({ err: e?.shortMessage ?? e?.message ?? "Transaction failed" });
+    } finally {
+      setStep("");
     }
   }
 
+  const blockedRust = rustSide && !dualDeployed;
   const disabled =
-    !isConnected || isPending || rustSide || amtAWei === 0n || amtBWei === 0n || addrA === addrB;
+    !isConnected ||
+    isPending ||
+    !!step ||
+    blockedRust ||
+    overU64 ||
+    amtAWei === 0n ||
+    amtBWei === 0n ||
+    sameSide;
 
   return (
     <>
       <div className={`pool-banner ${creating ? "create" : "add"}`}>
-        {addrA === addrB
+        {sameSide
           ? "Pick two different tokens."
-          : rustSide
-          ? "Rust-lane tokens pool through the cross-lane router — push the PXC side to the pair first (see docs/RUST-POOLS.md)."
+          : blockedRust
+          ? "Rust-lane pools need the cross-lane contracts: deploy them (npm run deploy:dual) and set VITE_LIFELOX_DUAL_FACTORY + VITE_LIFELOX_DUAL_ROUTER."
+          : overU64
+          ? "Rust-lane amounts are u64 — lower the amount (or use 6–8 decimals for the Rust token)."
+          : dualMode && creating
+          ? "New cross-lane pool. Creating it takes a few transactions: the pair, the PXC push into it, then the liquidity."
           : creating
           ? "New pool — you are the first provider and set the initial price."
           : `Adding to the existing ${tokenA.symbol} / ${tokenB.symbol} pool. Amount is held to the current ratio.`}
@@ -286,8 +394,10 @@ function NewPosition() {
         <button className="btn btn-primary" onClick={submit} disabled={disabled}>
           {!isConnected
             ? "Connect wallet"
-            : rustSide
-            ? "Rust lane — use the cross-lane router"
+            : blockedRust
+            ? "Cross-lane contracts not deployed"
+            : step
+            ? step
             : isPending
             ? "Confirming…"
             : amtAWei === 0n || amtBWei === 0n
@@ -298,6 +408,7 @@ function NewPosition() {
         </button>
       </div>
 
+      {step && <div className="msg msg-ok">{step} Approve each transaction in your wallet.</div>}
       {status.err && <div className="msg msg-error">{status.err}</div>}
       {status.ok && <div className="msg msg-ok">{status.ok}</div>}
 

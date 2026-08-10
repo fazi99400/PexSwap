@@ -13,6 +13,8 @@ export const ADDRESSES = {
   // lists the EVM-lane pools. When set, Rust-lane pools show up alongside them.
   dualFactory: (import.meta.env.VITE_LIFELOX_DUAL_FACTORY ??
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
+  dualRouter: (import.meta.env.VITE_LIFELOX_DUAL_ROUTER ??
+    "0x0000000000000000000000000000000000000000") as `0x${string}`,
 } as const;
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;

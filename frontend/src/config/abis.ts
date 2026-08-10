@@ -31,9 +31,29 @@ export const FACTORY_ABI = [
 
 // Cross-lane (dual) factory + pair. A pool side here is an Asset — a lane tag
 // plus either a 0x address (Solidity) or a numeric id (Rust) — not an address.
+const ASSET = (name: string) =>
+  ({
+    name,
+    type: "tuple",
+    components: [
+      { name: "lane", type: "uint8" },
+      { name: "token", type: "address" },
+      { name: "id", type: "uint64" },
+    ],
+  }) as const;
+
 export const DUAL_FACTORY_ABI = [
   { type: "function", name: "allPairsLength", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "allPairs", stateMutability: "view", inputs: [{ name: "", type: "uint256" }], outputs: [{ type: "address" }] },
+  { type: "function", name: "getPair", stateMutability: "view", inputs: [ASSET("a"), ASSET("b")], outputs: [{ type: "address" }] },
+  { type: "function", name: "createPair", stateMutability: "nonpayable", inputs: [ASSET("a"), ASSET("b")], outputs: [{ name: "pair", type: "address" }] },
+] as const;
+
+export const DUAL_ROUTER_ABI = [
+  { type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "getAmountOut", stateMutability: "pure", inputs: [{ name: "amountIn", type: "uint256" }, { name: "reserveIn", type: "uint256" }, { name: "reserveOut", type: "uint256" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "addLiquidity", stateMutability: "nonpayable", inputs: [ASSET("a"), ASSET("b"), { name: "amountA", type: "uint256" }, { name: "amountB", type: "uint256" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [{ name: "liquidity", type: "uint256" }] },
+  { type: "function", name: "swapExactInput", stateMutability: "nonpayable", inputs: [ASSET("assetIn"), ASSET("assetOut"), { name: "amountIn", type: "uint256" }, { name: "amountOutMin", type: "uint256" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [{ name: "amountOut", type: "uint256" }] },
 ] as const;
 
 export const DUAL_PAIR_ABI = [

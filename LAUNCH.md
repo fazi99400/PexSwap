@@ -78,6 +78,32 @@ VITE_TOKEN_PXLI=0x...
 > If your node's gas estimation is strict, add `export GAS_LIMIT=9000000` before
 > `npm run deploy`.
 
+### A3. (Only for Rust-lane tokens) deploy the cross-lane AMM
+
+The factory above is the plain EVM one: **every pool side must be a `0x` contract**, so
+a Rust-lane token (a numeric id) cannot be pooled on it — that pool needs the
+cross-lane contracts in `contracts-solidity/contracts/dual/`. They are already written;
+they just have to be deployed:
+
+```bash
+cd contracts-solidity
+export PEXLI_RPC_URL="https://your-pexli-rpc"
+export PRIVATE_KEY="0xYOUR_FUNDED_KEY"
+npm run bridge:check -- --id 90909      # first prove the bridge answers on your chain
+npm run deploy:dual
+```
+
+It prints (and saves to `deployments-dual.json`):
+
+```
+VITE_LIFELOX_DUAL_FACTORY=0x...
+VITE_LIFELOX_DUAL_ROUTER=0x...
+```
+
+Add those two in Part B alongside the rest, and the interface will create, list and
+swap Rust ↔ Solidity pools. Without them the app says so instead of sending a
+transaction that cannot succeed.
+
 ---
 
 ## Part B — Publish the interface on GitHub Pages
@@ -102,7 +128,8 @@ The site reads the contract addresses at build time. Add them once:
    | `VITE_PEXLI_RPC_URL` | your HTTPS pexli RPC |
    | `VITE_LIFELOX_FACTORY` | `0x…` |
    | `VITE_LIFELOX_ROUTER` | `0x…` |
-   | `VITE_LIFELOX_DUAL_FACTORY` | `0x…` (optional — cross-lane pools) |
+   | `VITE_LIFELOX_DUAL_FACTORY` | `0x…` (optional — cross-lane / Rust pools) |
+   | `VITE_LIFELOX_DUAL_ROUTER` | `0x…` (optional — cross-lane / Rust pools) |
    | `VITE_WPEX` | `0x…` |
    | `VITE_TOKEN_USDP` | `0x…` |
    | `VITE_TOKEN_PXLI` | `0x…` |
@@ -164,3 +191,6 @@ it): RPC = your HTTPS pexli RPC, Chain ID = your chain id, Currency symbol = **P
 | Blank page on Pages | The `VITE_BASE` must match the repo name — the workflow sets it automatically to `/<repo>/`. |
 | "insufficient funds" on deploy | Fund the deployer key with PEX (faucet), then re-run. |
 | Pools list empty | You haven't seeded a pool yet — deploy with `SEED=1`, or create one in the **Pool → New Position** tab. |
+| A Rust token shows as `PXC #id` | That id has no name/symbol written on-chain (metadata is optional and write-once), or your node has no bridge precompile — check with `npm run bridge:check -- --id <id>`. The app never invents a ticker. |
+| Can't create a pool with a Rust token | The cross-lane contracts aren't deployed / not configured — see A3, then set `VITE_LIFELOX_DUAL_FACTORY` + `VITE_LIFELOX_DUAL_ROUTER`. |
+| The site doesn't show your latest change | Pages only rebuilds on pushes to the branch listed in `.github/workflows/deploy-pages.yml` (`on.push.branches`). Merge into that branch, add yours to the list, or run the workflow manually from the Actions tab. |

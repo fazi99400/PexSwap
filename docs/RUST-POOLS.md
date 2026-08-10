@@ -51,13 +51,24 @@ uses the V2 "**transfer in, then call**" pattern:
   bridge returns its **name, symbol and decimals**, so a rust id resolves to a real
   ticker exactly like a `0x` address resolves through ERC-20 `name()/symbol()/decimals()`.
   With no metadata on the id it falls back to `PXC #id` / decimals 0.
+  If the bridge answers nothing, RUSTVM is asked with the same selectors before giving
+  up, and both a `bytes32` and an ABI-encoded `string` answer decode correctly.
 - **Pools are global** (`frontend/src/hooks/usePools.ts`): the Positions list and the
   Tokens table are built from `allPairs` on the factories, so a pool **anyone** creates
   is visible to **everyone**. Sides that are not in the built-in token list are hydrated
   on the fly (ERC-20 reads for Solidity, the bridge for Rust) and published into the
   shared token list, so those tokens also appear in every picker without an import.
-  Set `VITE_LIFELOX_DUAL_FACTORY` to include cross-lane pools in that list; the EVM-lane
-  swap/add-liquidity forms refuse a Rust side rather than sending a doomed transaction.
+- **Creating and swapping cross-lane pools** needs the dual contracts deployed and
+  `VITE_LIFELOX_DUAL_FACTORY` + `VITE_LIFELOX_DUAL_ROUTER` set (see LAUNCH.md §A3).
+  With them, picking a Rust token in **Pool → New Position** runs the full sequence —
+  `createPair`, the PXC push into the pair, the approve for any Solidity side, then
+  `router.addLiquidity` — showing which transaction is in flight; **Swap** does the same
+  (push, then `swapExactInput`) and quotes from the pair's reserves. Without them the UI
+  says which contracts are missing instead of sending a transaction that cannot succeed.
+- **Which side is token0** is decided by `AssetLib.key()`. The interface recomputes that
+  key off-chain (`frontend/src/lib/dual.ts`), so it is pinned to the contract by
+  `npm run test:dual-order` — it creates real pairs (Solidity↔Rust, Rust↔Rust,
+  Solidity↔Solidity) on an in-memory EVM and compares `asset0()` with the UI's choice.
 
 ## Deploy
 

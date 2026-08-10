@@ -4,15 +4,30 @@ import {
   useReadContract,
   useWriteContract,
   useBalance,
+  usePublicClient,
 } from "wagmi";
+import { readContract, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
+import { useQuery } from "@tanstack/react-query";
 import { maxUint256 } from "viem";
+import { wagmiConfig } from "../config/wagmi";
 import { NATIVE_PEX, SECOND_TOKEN, Token } from "../config/tokens";
-import { ADDRESSES } from "../config/addresses";
-import { ERC20_ABI, ROUTER_ABI } from "../config/abis";
+import { ADDRESSES, isConfigured } from "../config/addresses";
+import { ERC20_ABI, ROUTER_ABI, DUAL_ROUTER_ABI } from "../config/abis";
 import { fmt, parse, deadline } from "../lib/format";
 import { TokenModal } from "../components/TokenModal";
 import { useTokenList } from "../hooks/useTokenList";
 import { TokenIcon, LaneMark, IconChevron, IconArrowDown, IconSettings } from "../components/Icons";
+import { useDualPair } from "../hooks/useDualPair";
+import { assetArg, assetFor } from "../lib/dual";
+import { RUSTVM_ADDRESS, U64_MAX, encodeRustTransfer, fetchRustBalance } from "../lib/rustvm";
+
+/** Uniswap-V2 constant-product quote with the 0.30% fee — the same formula the
+ *  routers implement on-chain, so a cross-lane quote needs no extra RPC call. */
+function amountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint | undefined {
+  if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) return undefined;
+  const inWithFee = amountIn * 997n;
+  return (inWithFee * reserveOut) / (reserveIn * 1000n + inWithFee);
+}
 
 const isNative = (t: Token) => t.address === NATIVE_PEX.address;
 // Native PEX routes through WPEX inside the pool path.
@@ -28,12 +43,22 @@ export function Swap() {
   const [amountIn, setAmountIn] = useState("");
   const [picking, setPicking] = useState<null | "in" | "out">(null);
   const [status, setStatus] = useState<{ ok?: string; err?: string }>({});
+  // A cross-lane swap runs in more than one transaction — show which one.
+  const [step, setStep] = useState("");
+  const publicClient = usePublicClient();
 
   const amountInWei = parse(amountIn, tokenIn.decimals);
   const path = useMemo(() => [pathAddr(tokenIn), pathAddr(tokenOut)], [tokenIn, tokenOut]);
-  // A rust-lane side has no ERC-20 contract, so the EVM router cannot quote it —
+
+  // A rust-lane side has no ERC-20 contract, so the EVM router cannot touch it —
   // those swaps go through the cross-lane router (docs/RUST-POOLS.md).
   const rustSide = tokenIn.lane === "rust" || tokenOut.lane === "rust";
+  const dualDeployed = isConfigured(ADDRESSES.dualFactory) && isConfigured(ADDRESSES.dualRouter);
+  const dualMode = rustSide && dualDeployed;
+
+  const assetIn = useMemo(() => assetFor(tokenIn, ADDRESSES.wpex), [tokenIn]);
+  const assetOut = useMemo(() => assetFor(tokenOut, ADDRESSES.wpex), [tokenOut]);
+  const dual = useDualPair(dualMode ? assetIn : undefined, dualMode ? assetOut : undefined);
 
   // Quote: how much tokenOut for the given tokenIn.
   const { data: amounts } = useReadContract({
@@ -43,31 +68,48 @@ export function Swap() {
     args: [amountInWei, path as `0x${string}`[]],
     query: { enabled: amountInWei > 0n && path[0] !== path[1] && !rustSide },
   });
-  const amountOutWei = amounts?.[amounts.length - 1];
+  // Cross-lane quote comes off the dual pair's reserves (same x·y=k, same fee).
+  const dualOut = useMemo(
+    () => (dualMode && dual.reserves ? amountOut(amountInWei, dual.reserves.a, dual.reserves.b) : undefined),
+    [dualMode, dual.reserves, amountInWei]
+  );
+  const amountOutWei = dualMode ? dualOut : amounts?.[amounts.length - 1];
 
-  // Balances.
+  // Balances. A rust token's balance is a RUSTVM storage read, not balanceOf.
   const nativeBal = useBalance({ address, query: { enabled: !!address } });
   const inBal = useReadContract({
     address: tokenIn.address,
     abi: ERC20_ABI,
     functionName: "balanceOf",
     args: [address!],
-    query: { enabled: !!address && !isNative(tokenIn) && !rustSide },
+    query: { enabled: !!address && !isNative(tokenIn) && tokenIn.lane !== "rust" },
+  });
+  const { data: rustBal } = useQuery({
+    queryKey: ["rust-balance", tokenIn.id, address],
+    enabled: tokenIn.lane === "rust" && !!address && !!publicClient,
+    queryFn: () => fetchRustBalance(publicClient!, BigInt(tokenIn.id ?? 0), address!),
+    refetchInterval: 8000,
   });
 
-  // Allowance (only for non-native input).
+  // Allowance — only a Solidity input is ever pulled, and by whichever router
+  // will settle this swap.
+  const spender = dualMode ? ADDRESSES.dualRouter : ADDRESSES.router;
   const allowance = useReadContract({
     address: tokenIn.address,
     abi: ERC20_ABI,
     functionName: "allowance",
-    args: [address!, ADDRESSES.router],
-    query: { enabled: !!address && !isNative(tokenIn) && !rustSide },
+    args: [address!, spender],
+    query: { enabled: !!address && !isNative(tokenIn) && tokenIn.lane !== "rust" },
   });
 
   const needsApproval =
     !isNative(tokenIn) &&
+    tokenIn.lane !== "rust" &&
     amountInWei > 0n &&
     (allowance.data ?? 0n) < amountInWei;
+
+  const overU64 = tokenIn.lane === "rust" && amountInWei > U64_MAX;
+  const blockedRust = rustSide && !dualDeployed;
 
   const priceImpactLabel = useMemo(() => {
     if (!amountOutWei || amountInWei === 0n) return "—";
@@ -87,7 +129,7 @@ export function Swap() {
         address: tokenIn.address,
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [ADDRESSES.router, maxUint256],
+        args: [spender, maxUint256],
       });
       await allowance.refetch();
       setStatus({ ok: `${tokenIn.symbol} approved` });
@@ -96,12 +138,63 @@ export function Swap() {
     }
   }
 
+  /**
+   * Cross-lane swap. A Rust input cannot be pulled (no approve on that lane), so
+   * it is pushed to the pair first and the router measures what arrived; a
+   * Solidity input is pulled by the router as usual.
+   */
+  async function swapDual(minOut: bigint, dl: bigint) {
+    if (tokenIn.lane === "rust") {
+      if (!dual.pair) throw new Error("No pool for this pair yet");
+      setStep(`Sending ${tokenIn.symbol} to the pool…`);
+      const push = await sendTransaction(wagmiConfig, {
+        to: RUSTVM_ADDRESS,
+        data: encodeRustTransfer(BigInt(tokenIn.id ?? 0), dual.pair, amountInWei),
+        value: 0n,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash: push });
+    } else {
+      const current = (await readContract(wagmiConfig, {
+        address: tokenIn.address,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [address!, ADDRESSES.dualRouter],
+      })) as bigint;
+      if (current < amountInWei) {
+        setStep("Approving…");
+        const hash = await writeContractAsync({
+          address: tokenIn.address,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [ADDRESSES.dualRouter, maxUint256],
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash });
+      }
+    }
+
+    setStep("Swapping…");
+    const hash = await writeContractAsync({
+      address: ADDRESSES.dualRouter,
+      abi: DUAL_ROUTER_ABI,
+      functionName: "swapExactInput",
+      args: [assetArg(assetIn), assetArg(assetOut), amountInWei, minOut, address!, dl],
+    });
+    await waitForTransactionReceipt(wagmiConfig, { hash });
+  }
+
   async function handleSwap() {
     if (!address || !amountOutWei) return;
     setStatus({});
     const minOut = (amountOutWei * 995n) / 1000n; // 0.5% slippage tolerance
     const dl = deadline(20);
     try {
+      if (dualMode) {
+        await swapDual(minOut, dl);
+        setStatus({ ok: "Swap complete 🎉" });
+        setAmountIn("");
+        return;
+      }
+
       if (isNative(tokenIn)) {
         await writeContractAsync({
           address: ADDRESSES.router,
@@ -128,11 +221,17 @@ export function Swap() {
       setStatus({ ok: "Swap submitted 🎉" });
       setAmountIn("");
     } catch (e: any) {
-      setStatus({ err: e?.shortMessage ?? "Swap failed" });
+      setStatus({ err: e?.shortMessage ?? e?.message ?? "Swap failed" });
+    } finally {
+      setStep("");
     }
   }
 
-  const balIn = isNative(tokenIn) ? nativeBal.data?.value : inBal.data;
+  const balIn = isNative(tokenIn)
+    ? nativeBal.data?.value
+    : tokenIn.lane === "rust"
+    ? rustBal
+    : inBal.data;
 
   return (
     <div className="card">
@@ -202,11 +301,19 @@ export function Swap() {
           <button className="btn btn-primary" disabled>
             Connect wallet to swap
           </button>
-        ) : rustSide ? (
+        ) : blockedRust ? (
           <button className="btn btn-primary" disabled>
-            Rust lane — use the cross-lane router
+            Cross-lane contracts not deployed
           </button>
-        ) : needsApproval ? (
+        ) : overU64 ? (
+          <button className="btn btn-primary" disabled>
+            Amount too large for the Rust lane (u64)
+          </button>
+        ) : dualMode && !dual.exists ? (
+          <button className="btn btn-primary" disabled>
+            No pool for this pair yet
+          </button>
+        ) : needsApproval && !dualMode ? (
           <button className="btn btn-primary" onClick={handleApprove} disabled={isPending}>
             {isPending ? "Approving…" : `Approve ${tokenIn.symbol}`}
           </button>
@@ -214,13 +321,14 @@ export function Swap() {
           <button
             className="btn btn-primary"
             onClick={handleSwap}
-            disabled={isPending || !amountOutWei || amountInWei === 0n}
+            disabled={isPending || !!step || !amountOutWei || amountInWei === 0n}
           >
-            {isPending ? "Swapping…" : amountInWei === 0n ? "Enter an amount" : "Swap"}
+            {step || (isPending ? "Swapping…" : amountInWei === 0n ? "Enter an amount" : "Swap")}
           </button>
         )}
       </div>
 
+      {step && <div className="msg msg-ok">{step} Approve each transaction in your wallet.</div>}
       {status.err && <div className="msg msg-error">{status.err}</div>}
       {status.ok && <div className="msg msg-ok">{status.ok}</div>}
 

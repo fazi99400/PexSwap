@@ -113,6 +113,11 @@ export function TokenModal({
                       </span>
                     </div>
                     <div className="nm">{candidate.name}</div>
+                    {candidate.lane === "rust" && rust && !rust.hasMetadata && (
+                      <div className="subtle">
+                        This id has no name/symbol on-chain, so it shows as PXC #{q}.
+                      </div>
+                    )}
                   </div>
                   <button className="btn btn-primary import-btn" onClick={() => choose(candidate, true)}>
                     Import
