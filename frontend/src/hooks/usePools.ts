@@ -3,7 +3,7 @@ import { useReadContract, useReadContracts, usePublicClient } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { ADDRESSES, ZERO_ADDRESS, isConfigured } from "../config/addresses";
 import { FACTORY_ABI, PAIR_ABI, DUAL_FACTORY_ABI, DUAL_PAIR_ABI, ERC20_ABI } from "../config/abis";
-import { colorForAddress, DEFAULT_TOKENS, Token } from "../config/tokens";
+import { colorForAddress, DEFAULT_TOKENS, NATIVE_PEX, Token } from "../config/tokens";
 import { detectRustToken, rustKey, rustTokenFrom } from "../lib/rustvm";
 import { registerDiscoveredTokens } from "./useTokenList";
 
@@ -155,10 +155,14 @@ export function usePools(account?: `0x${string}`) {
     }
 
     if (dualDetails) {
-      // asset(lane, token, id): lane 0 = Solidity (use `token`), 1 = Rust (use `id`).
+      // asset(lane, token, id): 0 = Solidity (use `token`), 1 = Rust (use `id`),
+      // 2 = native PEX — which the UI already knows as the zero address.
       const asRef = (a?: readonly [number, `0x${string}`, bigint]): Ref | undefined => {
         if (!a) return undefined;
-        return Number(a[0]) === 1 ? { lane: "rust", id: BigInt(a[2]) } : { lane: "solidity", address: a[1] };
+        const lane = Number(a[0]);
+        if (lane === 1) return { lane: "rust", id: BigInt(a[2]) };
+        if (lane === 2) return { lane: "solidity", address: NATIVE_PEX.address };
+        return { lane: "solidity", address: a[1] };
       };
       for (let i = 0; i < dualPairs.length; i++) {
         const base = i * 5;

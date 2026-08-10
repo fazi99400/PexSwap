@@ -89,7 +89,6 @@ they just have to be deployed:
 cd contracts-solidity
 export PEXLI_RPC_URL="https://your-pexli-rpc"
 export PRIVATE_KEY="0xYOUR_FUNDED_KEY"
-export WPEX="0xYourWpexFromPartA"       # the router wraps native PEX itself
 npm run bridge:check -- --id 90909      # first prove the bridge answers on your chain
 npm run deploy:dual
 ```
@@ -109,7 +108,7 @@ VITE_LIFELOX_DUAL_ROUTER=0x...
 ```
 
 Add those two in Part B alongside the rest, and the interface will create, list and
-swap Rust ↔ Solidity pools. Without them the app says so instead of sending a
+swap Rust ↔ Solidity pools. PEX pools natively here — no WPEX involved. Without them the app says so instead of sending a
 transaction that cannot succeed.
 
 ---

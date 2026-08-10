@@ -43,6 +43,11 @@ contract LifeloxDualPair is LifeloxERC20 {
         factory = msg.sender;
     }
 
+    /// PEX is pooled natively: liquidity and swap inputs arrive here as plain
+    /// value, exactly like a token transfer arrives as a balance. Every entry
+    /// point that spends it is `lock`ed, so a payout cannot reenter the pool.
+    receive() external payable {}
+
     function initialize(Asset calldata _a0, Asset calldata _a1) external {
         require(msg.sender == factory, "Lifelox: FORBIDDEN");
         asset0 = _a0;
@@ -57,15 +62,19 @@ contract LifeloxDualPair is LifeloxERC20 {
 
     function _bal(Asset memory a) internal view returns (uint256) {
         if (a.lane == Lane.Solidity) return IPXC20(a.token).balanceOf(address(this));
-        return PxcBridge.balanceOf20(a.id, address(this));
+        if (a.lane == Lane.Rust) return PxcBridge.balanceOf20(a.id, address(this));
+        return address(this).balance; // Native: the pool's own PEX
     }
 
     function _payout(Asset memory a, address to, uint256 amount) internal {
         if (a.lane == Lane.Solidity) {
             (bool ok, bytes memory data) = a.token.call(abi.encodeWithSelector(SELECTOR, to, amount));
             require(ok && (data.length == 0 || abi.decode(data, (bool))), "Lifelox: TRANSFER_FAILED");
-        } else {
+        } else if (a.lane == Lane.Rust) {
             PxcBridge.transfer20(a.id, to, amount); // reverts if amount > u64
+        } else {
+            (bool sent, ) = to.call{value: amount}("");
+            require(sent, "Lifelox: PEX_TRANSFER_FAILED");
         }
     }
 

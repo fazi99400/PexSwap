@@ -28,6 +28,8 @@ function check(name, cond) {
 const assetKey = (a) =>
   a.lane === 1
     ? ethers.keccak256(ethers.solidityPacked(["uint8", "uint64"], [1, a.id]))
+    : a.lane === 2
+    ? ethers.keccak256(ethers.solidityPacked(["uint8"], [2]))
     : ethers.keccak256(ethers.solidityPacked(["uint8", "address"], [0, a.token]));
 const isFirst = (a, b) => BigInt(assetKey(a)) < BigInt(assetKey(b));
 
@@ -47,6 +49,7 @@ const predictPair = (factory, initCodeHash, a, b) =>
 const ZERO = ethers.ZeroAddress;
 const solidityAsset = (token) => ({ lane: 0, token, id: 0n });
 const rustAsset = (id) => ({ lane: 1, token: ZERO, id: BigInt(id) });
+const nativeAsset = () => ({ lane: 2, token: ZERO, id: 0n });
 const tuple = (a) => [a.lane, a.token, a.id];
 
 async function main() {
@@ -79,6 +82,8 @@ async function main() {
     ["rust ↔ solidity (reversed input)", rustAsset(90909), solidityAsset(await tokenB.getAddress())],
     ["rust ↔ rust", rustAsset(919191), rustAsset(90909)],
     ["solidity ↔ solidity", solidityAsset(await tokenA.getAddress()), solidityAsset(await tokenB.getAddress())],
+    ["native PEX ↔ rust", nativeAsset(), rustAsset(90909)],
+    ["native PEX ↔ solidity", nativeAsset(), solidityAsset(await tokenA.getAddress())],
   ];
 
   const codeHash = await factory.pairCodeHash();

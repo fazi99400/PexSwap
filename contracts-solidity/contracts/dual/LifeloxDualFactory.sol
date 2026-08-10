@@ -40,7 +40,7 @@ contract LifeloxDualFactory {
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), h)
         }
-        LifeloxDualPair(pair).initialize(a0, a1);
+        LifeloxDualPair(payable(pair)).initialize(a0, a1);
 
         getPairByHash[h] = pair;
         allPairs.push(pair);

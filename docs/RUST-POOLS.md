@@ -16,9 +16,12 @@ Solidity↔Rust pair. It works because the chain exposes a **bridge precompile**
   Wrapped in [`PxcBridge.sol`](../contracts-solidity/contracts/dual/PxcBridge.sol).
 - **A pool side is an `Asset`**, not an address:
   ```solidity
-  enum Lane { Solidity, Rust }
-  struct Asset { Lane lane; address token; uint64 id; } // token XOR id
+  enum Lane { Solidity, Rust, Native }
+  struct Asset { Lane lane; address token; uint64 id; }
   ```
+  `Native` is PEX itself — the pair holds it as its own balance and pays it back out
+  as PEX, so **nothing is ever wrapped**. There is no WPEX anywhere in a cross-lane
+  pool; WPEX stays what it always was, an ordinary ERC-20 on the EVM lane.
 - **`LifeloxDualPair`** is a Uniswap-V2 x·y=k pool that reads each reserve and pays
   out each side through the right lane (ERC-20 `balanceOf`/`transfer`, or the bridge).
   The pool's own address holds its own Rust-lane balance, and `0xA0` moves it.
@@ -60,33 +63,29 @@ uses the V2 "**transfer in, then call**" pattern:
   shared token list, so those tokens also appear in every picker without an import.
 - **Creating and swapping cross-lane pools** needs the dual contracts deployed and
   `VITE_LIFELOX_DUAL_FACTORY` + `VITE_LIFELOX_DUAL_ROUTER` set (see LAUNCH.md §A3).
-  It then works like an ordinary pool — **PEX + a Rust token is two transactions**:
+  A pool **without** a Rust side (PEX ↔ token, token ↔ token) is **one call** —
+  `addLiquidity` creates the pair and mints, with PEX riding along as `msg.value`.
 
-  1. the PXC push to the pair, and
-  2. `router.addLiquidity{value: pexAmount}` — which creates the pair if needed and
-     wraps the PEX itself.
-
-  Nothing else is signed: the pair address is predicted off-chain (CREATE2), so it
-  needs no `createPair` call, and native PEX needs no `approve` and no separate
-  `WPEX.deposit`. An ERC-20 side costs one `approve`, exactly like the EVM lane.
-  **Swap** is the same shape — a Rust input is pushed first, everything else rides
-  along with `swapExactInput`, which takes `unwrapPEX` so a PEX payout arrives as
-  native PEX. Without the contracts the UI says which ones are missing instead of
-  sending a transaction that cannot succeed.
-- **Why the push is still separate:** `PxcBridge.transfer20` moves PXC **from the
-  caller**, so a contract can only move its own balance. No router can pull a Rust
-  token on the user's behalf — that transaction is a property of the chain, not of
-  this interface.
+  A pool **with** a Rust side is **two**: the PXC push, then `addLiquidity`. Nothing
+  else is signed — the pair address is predicted off-chain (CREATE2), so no
+  `createPair` call is needed, and PEX needs no approve and no wrap. An ERC-20 side
+  costs one `approve`, exactly like the EVM lane. **Swap** is the same shape.
+- **Why the Rust push cannot be merged into the same transaction:**
+  `PxcBridge.transfer20` moves PXC **from the caller**, so a contract can only ever
+  move its *own* PXC. The Rust lane has no `approve` and no delegated transfer, which
+  means no router can move a user's Rust tokens for them — the holder has to sign
+  that transfer. It is a property of the chain, not of this interface, and it is the
+  one transaction that cannot be removed. Everything else has been.
 - **Which side is token0, and where the pair lives**, are both decided by
   `AssetLib.key()` and recomputed off-chain (`frontend/src/lib/dual.ts`) — the second
   one matters because Rust tokens are pushed to the pair *before* it is deployed.
   `npm run test:dual-order` pins both to the contract: it creates real pairs
   (Solidity↔Rust, Rust↔Rust, Solidity↔Solidity) on an in-memory EVM and checks the
   UI's `asset0()` choice and its predicted CREATE2 address against the factory.
-- **Native PEX is the router's job**, not the interface's: `addLiquidity` and
-  `swapExactInput` are payable and wrap/unwrap through WPEX. `npm run test:dual-pex`
-  proves it on a real EVM (pool seeded with `value`, PEX-in swap, PEX-out unwrap, no
-  WPEX or PEX left stranded on the user or the router).
+- **PEX is a lane, not a wrapper.** `npm run test:dual-pex` proves it on a real EVM:
+  one call creates a pool holding real PEX, swaps go in and out as PEX, adding later
+  is still one call, a mismatched `msg.value` is rejected, and burning LP returns
+  native PEX — with nothing stranded in the router.
 - **Withdrawing** works on both pair types the low-level V2 way — the LP tokens go
   back to the pair and `burn` pays each side out through its own lane. That is also
   the way out of a pool seeded at the wrong ratio.

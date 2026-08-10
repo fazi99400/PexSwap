@@ -5,7 +5,6 @@ import "./Asset.sol";
 import "./LifeloxDualPair.sol";
 import "./LifeloxDualFactory.sol";
 import "../core/interfaces/IPXC20.sol";
-import "../periphery/interfaces/IWPEX.sol";
 
 /// @title LifeloxDualRouter - safe entry point for cross-lane pools.
 /// @notice Solidity-lane inputs are pulled with transferFrom (needs approve).
@@ -14,29 +13,21 @@ import "../periphery/interfaces/IWPEX.sol";
 ///         to the Rust-VM account), then call the router, which measures what
 ///         arrived — the Uniswap-V2 "transfer in, then call" pattern.
 ///
-///         Native PEX is handled here rather than by the caller: send it as
-///         `msg.value` for a WPEX side and the router wraps it, exactly like the
-///         EVM-lane `addLiquidityPEX`/`swapExactETHForTokens` do. Without this the
-///         interface would have to make the user sign a separate wrap first.
+///         Native PEX needs no wrapper: a `Lane.Native` side is pooled as PEX
+///         itself. Send it as `msg.value` and the router forwards it to the pair,
+///         which holds it as its own balance and pays it back out the same way.
 contract LifeloxDualRouter {
     using AssetLib for Asset;
 
     address public immutable factory;
-    address public immutable wpex;
 
     modifier ensure(uint256 deadline) {
         require(deadline >= block.timestamp, "LifeloxRouter: EXPIRED");
         _;
     }
 
-    constructor(address _factory, address _wpex) {
+    constructor(address _factory) {
         factory = _factory;
-        wpex = _wpex;
-    }
-
-    /// Only WPEX may send PEX here (it does so on withdraw).
-    receive() external payable {
-        require(msg.sender == wpex, "LifeloxRouter: PEX_NOT_ACCEPTED");
     }
 
     // --- pure AMM math (0.30% fee) ---------------------------------------
@@ -59,24 +50,31 @@ contract LifeloxDualRouter {
     // --- helpers ----------------------------------------------------------
 
     function _pair(Asset calldata a, Asset calldata b) internal view returns (LifeloxDualPair p, bool inIs0) {
-        address addr = LifeloxDualFactory(factory).getPair(a, b);
+        address payable addr = payable(LifeloxDualFactory(factory).getPair(a, b));
         require(addr != address(0), "LifeloxRouter: NO_PAIR");
         p = LifeloxDualPair(addr);
         inIs0 = a.key() < b.key();
     }
 
-    /// Move a Solidity side to `to`. Native PEX arrives as `msg.value` for the
-    /// WPEX asset and is wrapped here; anything else is pulled with transferFrom.
-    /// Rust sides are already at `to` — the caller pushed them.
-    function _pullSolidity(Asset calldata a, address to, uint256 amount) internal {
-        if (a.lane != Lane.Solidity) return;
-        if (msg.value > 0 && a.token == wpex) {
-            require(msg.value == amount, "LifeloxRouter: PEX_AMOUNT");
-            IWPEX(wpex).deposit{value: amount}();
-            require(IWPEX(wpex).transfer(to, amount), "LifeloxRouter: WPEX_TRANSFER");
-            return;
+    /// Deliver one input side to the pair.
+    ///  - Solidity: pulled with transferFrom (needs approve).
+    ///  - Native:   forwarded from msg.value — no wrapper, no approve.
+    ///  - Rust:     already there; the caller pushed it (nothing can pull it).
+    function _deliver(Asset calldata a, address to, uint256 amount) internal {
+        if (a.lane == Lane.Solidity) {
+            require(IPXC20(a.token).transferFrom(msg.sender, to, amount), "LifeloxRouter: TRANSFER_FROM");
+        } else if (a.lane == Lane.Native) {
+            (bool sent, ) = to.call{value: amount}("");
+            require(sent, "LifeloxRouter: PEX_SEND");
         }
-        require(IPXC20(a.token).transferFrom(msg.sender, to, amount), "LifeloxRouter: TRANSFER_FROM");
+    }
+
+    /// PEX sent must match exactly what the native side (if any) is adding.
+    function _checkValue(Asset calldata a, uint256 amountA, Asset calldata b, uint256 amountB) internal view {
+        uint256 needed;
+        if (a.lane == Lane.Native) needed += amountA;
+        if (b.lane == Lane.Native) needed += amountB;
+        require(msg.value == needed, "LifeloxRouter: PEX_AMOUNT");
     }
 
     // --- liquidity --------------------------------------------------------
@@ -92,10 +90,11 @@ contract LifeloxDualRouter {
         address to,
         uint256 deadline
     ) external payable ensure(deadline) returns (uint256 liquidity) {
-        address pairAddr = LifeloxDualFactory(factory).getPair(a, b);
-        if (pairAddr == address(0)) pairAddr = LifeloxDualFactory(factory).createPair(a, b);
-        _pullSolidity(a, pairAddr, amountA);
-        _pullSolidity(b, pairAddr, amountB);
+        _checkValue(a, amountA, b, amountB);
+        address payable pairAddr = payable(LifeloxDualFactory(factory).getPair(a, b));
+        if (pairAddr == address(0)) pairAddr = payable(LifeloxDualFactory(factory).createPair(a, b));
+        _deliver(a, pairAddr, amountA);
+        _deliver(b, pairAddr, amountB);
         liquidity = LifeloxDualPair(pairAddr).mint(to);
     }
 
@@ -104,16 +103,15 @@ contract LifeloxDualRouter {
     /// Swap an exact input amount of `assetIn` for `assetOut`.
     /// Solidity input is pulled via transferFrom; Rust input must be pushed to
     /// the pair by the caller beforehand (then this measures it).
-    /// @param unwrapPEX pay a WPEX output out as native PEX instead of WPEX.
     function swapExactInput(
         Asset calldata assetIn,
         Asset calldata assetOut,
         uint256 amountIn,
         uint256 amountOutMin,
         address to,
-        uint256 deadline,
-        bool unwrapPEX
+        uint256 deadline
     ) external payable ensure(deadline) returns (uint256 amountOut) {
+        require(msg.value == (assetIn.lane == Lane.Native ? amountIn : 0), "LifeloxRouter: PEX_AMOUNT");
         (LifeloxDualPair p, bool inIs0) = _pair(assetIn, assetOut);
         (uint112 r0, uint112 r1, ) = p.getReserves();
         (uint256 reserveIn, uint256 reserveOut) = inIs0 ? (uint256(r0), uint256(r1)) : (uint256(r1), uint256(r0));
@@ -121,17 +119,9 @@ contract LifeloxDualRouter {
         amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
         require(amountOut >= amountOutMin, "LifeloxRouter: INSUFFICIENT_OUTPUT");
 
-        _pullSolidity(assetIn, address(p), amountIn); // Rust input already at the pair
-
-        bool toPEX = unwrapPEX && assetOut.lane == Lane.Solidity && assetOut.token == wpex;
-        address payTo = toPEX ? address(this) : to;
+        _deliver(assetIn, address(p), amountIn); // a Rust input is already at the pair
+        // The pair pays the output out through its own lane — PEX arrives as PEX.
         (uint256 a0Out, uint256 a1Out) = inIs0 ? (uint256(0), amountOut) : (amountOut, uint256(0));
-        p.swap(a0Out, a1Out, payTo);
-
-        if (toPEX) {
-            IWPEX(wpex).withdraw(amountOut);
-            (bool sent, ) = to.call{value: amountOut}("");
-            require(sent, "LifeloxRouter: PEX_SEND");
-        }
+        p.swap(a0Out, a1Out, to);
     }
 }

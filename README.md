@@ -115,10 +115,11 @@ tokens through the chain's **bridge precompile** (`0x…0e13`). The dual-lane AM
 `LifeloxDualFactory` / `LifeloxDualPair` / `LifeloxDualRouter` in
 [`contracts-solidity/contracts/dual/`](contracts-solidity/contracts/dual) — reads
 and moves each side through its own lane (ERC-20 or the bridge). Because the Rust
-lane has no `approve`, it uses the V2 "transfer in, then call" pattern — the UI drives
-that sequence for you (create pair → push the PXC side into it → add liquidity / swap)
-once the dual contracts are deployed (`npm run deploy:dual`, then set
-`VITE_LIFELOX_DUAL_FACTORY` and `VITE_LIFELOX_DUAL_ROUTER`). Full guide, constraints
+lane has no `approve`, it uses the V2 "transfer in, then call" pattern: the holder
+pushes the PXC side to the pair, then one `addLiquidity` call creates the pool and
+mints. **PEX is a pool side in its own right** — the pair holds native PEX, so nothing
+is wrapped. Deploy with `npm run deploy:dual`, then set `VITE_LIFELOX_DUAL_FACTORY`
+and `VITE_LIFELOX_DUAL_ROUTER`. Full guide, constraints
 (u64 amounts, no events, 6–8 decimals), and the on-chain test flow:
 **[docs/RUST-POOLS.md](docs/RUST-POOLS.md)**.
 

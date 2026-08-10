@@ -56,8 +56,8 @@ export function Swap() {
   const dualDeployed = isConfigured(ADDRESSES.dualFactory) && isConfigured(ADDRESSES.dualRouter);
   const dualMode = rustSide && dualDeployed;
 
-  const assetIn = useMemo(() => assetFor(tokenIn, ADDRESSES.wpex), [tokenIn]);
-  const assetOut = useMemo(() => assetFor(tokenOut, ADDRESSES.wpex), [tokenOut]);
+  const assetIn = useMemo(() => assetFor(tokenIn), [tokenIn]);
+  const assetOut = useMemo(() => assetFor(tokenOut), [tokenOut]);
   const dual = useDualPair(dualMode ? assetIn : undefined, dualMode ? assetOut : undefined);
 
   // Quote: how much tokenOut for the given tokenIn.
@@ -110,9 +110,6 @@ export function Swap() {
 
   const overU64 = tokenIn.lane === "rust" && amountInWei > U64_MAX;
   const blockedRust = rustSide && !dualDeployed;
-  // The router wraps/unwraps native PEX itself; it just needs to know WPEX.
-  const nativeInDual = dualMode && (isNative(tokenIn) || isNative(tokenOut));
-  const wpexMissing = nativeInDual && !isConfigured(ADDRESSES.wpex);
 
   const priceImpactLabel = useMemo(() => {
     if (!amountOutWei || amountInWei === 0n) return "—";
@@ -147,10 +144,10 @@ export function Swap() {
    * Solidity input is pulled by the router as usual.
    */
   async function swapDual(minOut: bigint, dl: bigint) {
-    // Native PEX is handled by the router itself — sent as msg.value on the way
-    // in, unwrapped back to PEX on the way out — so there is nothing to sign for
-    // it here. Only a Rust input still needs its own transaction, because that
-    // lane has no approve and only the holder can move the tokens.
+    // PEX is a pool side in its own right: it rides along as msg.value and comes
+    // back out as PEX, so there is nothing to sign for it. Only a Rust input
+    // needs its own transaction — that lane has no approve, and only the holder
+    // can move the tokens.
     if (tokenIn.lane === "rust") {
       if (!dual.pair) throw new Error("No pool for this pair yet");
       setStep(`Sending ${tokenIn.symbol} to the pool…`);
@@ -185,15 +182,7 @@ export function Swap() {
       address: ADDRESSES.dualRouter,
       abi: DUAL_ROUTER_ABI,
       functionName: "swapExactInput",
-      args: [
-        assetArg(assetIn),
-        assetArg(assetOut),
-        amountInWei,
-        minOut,
-        address!,
-        dl,
-        isNative(tokenOut), // unwrapPEX — pay out native PEX, not WPEX
-      ],
+      args: [assetArg(assetIn), assetArg(assetOut), amountInWei, minOut, address!, dl],
       value: isNative(tokenIn) ? amountInWei : 0n,
     });
     await waitForTransactionReceipt(wagmiConfig, { hash });
@@ -321,10 +310,6 @@ export function Swap() {
         ) : blockedRust ? (
           <button className="btn btn-primary" disabled>
             Cross-lane contracts not deployed
-          </button>
-        ) : wpexMissing ? (
-          <button className="btn btn-primary" disabled>
-            WPEX address not set
           </button>
         ) : overU64 ? (
           <button className="btn btn-primary" disabled>

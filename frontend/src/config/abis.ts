@@ -31,13 +31,6 @@ export const FACTORY_ABI = [
 
 // Cross-lane (dual) factory + pair. A pool side here is an Asset — a lane tag
 // plus either a 0x address (Solidity) or a numeric id (Rust) — not an address.
-// WPEX — native PEX wrapped as an ERC-20. The cross-lane router only moves
-// ERC-20s, so a native-PEX side has to be wrapped before it can be pooled.
-export const WPEX_ABI = [
-  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
-  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "wad", type: "uint256" }], outputs: [] },
-] as const;
-
 const ASSET = (name: string) =>
   ({
     name,
@@ -62,7 +55,7 @@ export const DUAL_ROUTER_ABI = [
   { type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "getAmountOut", stateMutability: "pure", inputs: [{ name: "amountIn", type: "uint256" }, { name: "reserveIn", type: "uint256" }, { name: "reserveOut", type: "uint256" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "addLiquidity", stateMutability: "payable", inputs: [ASSET("a"), ASSET("b"), { name: "amountA", type: "uint256" }, { name: "amountB", type: "uint256" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [{ name: "liquidity", type: "uint256" }] },
-  { type: "function", name: "swapExactInput", stateMutability: "payable", inputs: [ASSET("assetIn"), ASSET("assetOut"), { name: "amountIn", type: "uint256" }, { name: "amountOutMin", type: "uint256" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }, { name: "unwrapPEX", type: "bool" }], outputs: [{ name: "amountOut", type: "uint256" }] },
+  { type: "function", name: "swapExactInput", stateMutability: "payable", inputs: [ASSET("assetIn"), ASSET("assetOut"), { name: "amountIn", type: "uint256" }, { name: "amountOutMin", type: "uint256" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [{ name: "amountOut", type: "uint256" }] },
 ] as const;
 
 export const DUAL_PAIR_ABI = [
