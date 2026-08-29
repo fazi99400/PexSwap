@@ -78,36 +78,11 @@ const PXLI = envToken(import.meta.env.VITE_TOKEN_PXLI, {
   color: ["#FFDE7A", "#E0A400"],
 });
 
-// Project tokens that should always be visible to EVERY visitor (not just the
-// person who imported them). Added here so they ship in the app bundle.
-const MAIN_TOKENS: Token[] = [
-  {
-    address: "0xb95DAf22103204ba261258D9613353E96f3343b1",
-    symbol: "TGold",
-    name: "Test Gold",
-    decimals: 14,
-    lane: "solidity",
-    color: ["#FFDE7A", "#E0A400"],
-  },
-  {
-    address: "0x3092c4a14e6d4E66B3c708276a4a121ef7658609",
-    symbol: "TK1",
-    name: "Token 1",
-    decimals: 12,
-    lane: "solidity",
-    color: ["#7AA2FF", "#3B5BDB"],
-  },
-  {
-    address: "0x08915D4D3D313ABA6673db45F050D1bcCA53745b",
-    symbol: "TUS",
-    name: "Test USD",
-    decimals: 18,
-    lane: "solidity",
-    color: ["#4FE0A0", "#12A150"],
-  },
-];
-
-export const DEFAULT_TOKENS: Token[] = [NATIVE_PEX, WPEX, USDP, PXLI, ...MAIN_TOKENS].filter(
+// Only PEX and tokens that actually exist on the current chain are listed. Any
+// token with a live pool is discovered on-chain and added automatically (see
+// usePools), so nothing needs to be hard-coded here — hard-coded addresses from
+// a previous chain just render as dead entries after a network reset.
+export const DEFAULT_TOKENS: Token[] = [NATIVE_PEX, WPEX, USDP, PXLI].filter(
   (t): t is Token => t !== null
 );
 

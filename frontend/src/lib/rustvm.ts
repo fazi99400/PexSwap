@@ -61,6 +61,23 @@ export function balanceSlot(ns: number, id: bigint, holder: Address): Hex {
   return keccak256(concatBytes([Uint8Array.of(ns), u64be(id), toBytes(pad(holder, { size: 20 }))]));
 }
 
+// A token's name/symbol/decimals live in RUSTVM storage at meta_slot(kind, id) =
+// keccak256(0x4D | kind | id_be). Reading them straight from storage (rather than
+// via the bridge precompile) is what survives the multi-shard public router: a
+// getStorageAt from a shard that does not hold the token comes back as a zero
+// word and the router skips it for the shard that has the real value, whereas a
+// bridge eth_call returns a zero word from EVERY shard and the router cannot tell
+// which one is real — so the bridge read silently comes back blank off-chain.
+const META_TAG = 0x4d;
+const META_DECIMALS = 1;
+const META_SYMBOL = 2;
+const META_NAME = 3;
+
+/** keccak256(0x4D | kind | id_be) — RUSTVM storage slot for a metadata word. */
+export function metaSlot(kind: number, id: bigint): Hex {
+  return keccak256(concatBytes([Uint8Array.of(META_TAG, kind & 0xff), u64be(id)]));
+}
+
 export const RUST_NAMESPACES: { ns: number; label: string }[] = [
   { ns: NS_PXC20, label: "PXC-20" },
   { ns: NS_PXC1155, label: "PXC-1155" },
@@ -159,6 +176,31 @@ const toDecimals = (word?: Hex): number => {
  * real ticker and a "PXC #id" placeholder on a chain without the bridge.
  */
 export async function fetchRustMeta(client: RustReader, id: bigint): Promise<RustMeta> {
+  // Primary: read the metadata words straight from RUSTVM storage. This is the
+  // path that resolves correctly through the multi-shard public router (see the
+  // note on metaSlot) — the bridge eth_call below returns blank off-chain when
+  // the token does not live on the router's first-answering shard.
+  const readSlot = async (kind: number): Promise<Hex | undefined> => {
+    try {
+      const w = await client.getStorageAt({ address: RUSTVM_ADDRESS, slot: metaSlot(kind, id) });
+      return w && w !== "0x" ? w : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const [symW, nameW, decW] = await Promise.all([
+    readSlot(META_SYMBOL),
+    readSlot(META_NAME),
+    readSlot(META_DECIMALS),
+  ]);
+  const sSym = bytes32ToString(symW);
+  const sName = bytes32ToString(nameW);
+  const sDec = toDecimals(decW);
+  if (sSym || sName || sDec) {
+    return { symbol: sSym, name: sName, decimals: sDec, hasMetadata: !!sSym || !!sName, source: RUSTVM_ADDRESS };
+  }
+
+  // Fallback: the bridge precompile (single-shard chains / older nodes).
   for (const source of [PXC_BRIDGE_ADDRESS, RUSTVM_ADDRESS] as const) {
     const [symWord, nameWord, decWord] = await Promise.all([
       readAt(client, source, OP_SYMBOL, id),
