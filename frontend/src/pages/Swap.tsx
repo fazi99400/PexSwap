@@ -54,7 +54,12 @@ export function Swap() {
   // those swaps go through the cross-lane router (docs/RUST-POOLS.md).
   const rustSide = tokenIn.lane === "rust" || tokenOut.lane === "rust";
   const dualDeployed = isConfigured(ADDRESSES.dualFactory) && isConfigured(ADDRESSES.dualRouter);
-  const dualMode = rustSide && dualDeployed;
+  // Route EVERY pool through the cross-lane (dual) router when it is deployed —
+  // it handles Solidity, Rust and native PEX sides uniformly, so all four pool
+  // combinations (rust/rust, solidity/solidity, solidity/rust, rust/solidity)
+  // work with only the dual contracts deployed. A rust side still can't be
+  // pulled, so it takes the extra push step handled below.
+  const dualMode = dualDeployed;
 
   const assetIn = useMemo(() => assetFor(tokenIn), [tokenIn]);
   const assetOut = useMemo(() => assetFor(tokenOut), [tokenOut]);
@@ -66,7 +71,7 @@ export function Swap() {
     abi: ROUTER_ABI,
     functionName: "getAmountsOut",
     args: [amountInWei, path as `0x${string}`[]],
-    query: { enabled: amountInWei > 0n && path[0] !== path[1] && !rustSide },
+    query: { enabled: amountInWei > 0n && path[0] !== path[1] && !dualMode },
   });
   // Cross-lane quote comes off the dual pair's reserves (same x·y=k, same fee).
   const dualOut = useMemo(

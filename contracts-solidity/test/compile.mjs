@@ -24,7 +24,8 @@ function walk(dir) {
 export function compileAll() {
   const sources = {};
   for (const f of walk(ROOT)) {
-    sources[path.relative(ROOT, f)] = { content: fs.readFileSync(f, "utf8") };
+    const key = path.relative(ROOT, f).split(path.sep).join("/");
+    sources[key] = { content: fs.readFileSync(f, "utf8") };
   }
 
   const input = {

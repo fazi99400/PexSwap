@@ -194,11 +194,15 @@ function NewPosition() {
   // pools go through the cross-lane factory/router in contracts/dual.
   const rustSide = tokenA.lane === "rust" || tokenB.lane === "rust";
   const dualDeployed = isConfigured(ADDRESSES.dualFactory) && isConfigured(ADDRESSES.dualRouter);
-  const dualMode = rustSide && dualDeployed;
+  // Route EVERY pool through the cross-lane (dual) factory/router when deployed —
+  // it pools Solidity, Rust and native PEX sides uniformly, so all four
+  // combinations work with only the dual contracts. A rust side still needs the
+  // two-signature push flow below (nothing can pull it).
+  const dualMode = dualDeployed;
 
   const assetA = useMemo(() => assetFor(tokenA), [tokenA]);
   const assetB = useMemo(() => assetFor(tokenB), [tokenB]);
-  const sameSide = rustSide ? sameAsset(assetA, assetB) : addrA === addrB;
+  const sameSide = sameAsset(assetA, assetB);
   const dual = useDualPair(dualMode ? assetA : undefined, dualMode ? assetB : undefined);
 
   // Does the pool already exist?
@@ -207,7 +211,7 @@ function NewPosition() {
     abi: FACTORY_ABI,
     functionName: "getPair",
     args: [addrA, addrB],
-    query: { enabled: !rustSide && addrA !== addrB },
+    query: { enabled: !dualMode && addrA !== addrB },
   });
   const poolAddr = (existingPair as `0x${string}` | undefined) ?? undefined;
   const poolExists =
