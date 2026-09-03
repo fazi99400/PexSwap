@@ -18,17 +18,13 @@ export function Team() {
     <div className="card" style={{ maxWidth: 720 }}>
       <div className="card-title">
         <h2>Team</h2>
-        <span className="pill-tag">Open source</span>
+        <span className="pill-tag">Community</span>
       </div>
 
       <p className="about-lead">
-        Lifelox is built and maintained as an open-source project on top of{" "}
-        <a href="https://github.com/fazi99400/Fazi-Nom/tree/claude/pexli-v2-block-review-wxqbhh/pexli-v2" target="_blank" rel="noreferrer">
-          Pexli&nbsp;v2
-        </a>
-        . Rather than a fixed roster, work is organized around the areas the protocol
-        actually needs — anyone reading the code and sending a pull request is part of
-        building it.
+        Lifelox is built and maintained by a small open-source-minded team on top of the
+        Pexli chain. Rather than a fixed roster, work is organized around the areas the
+        protocol actually needs.
       </p>
 
       <div className="about-section">
@@ -46,12 +42,9 @@ export function Team() {
       <div className="about-section">
         <h3>Contribute</h3>
         <p className="subtle">
-          The contracts, the Rust AMM, the frontend, and the wallet SDK are all in the{" "}
-          <a href="https://github.com/fazi99400/PexSwap" target="_blank" rel="noreferrer">
-            public repository
-          </a>
-          , with the test suite that has to keep passing. Issues and pull requests are
-          welcome.
+          The contracts, the Rust AMM, the frontend, and the wallet SDK — along with the
+          test suite that already has to keep passing — will be published together once
+          the source goes public. Issues and pull requests will be welcome from day one.
         </p>
       </div>
 

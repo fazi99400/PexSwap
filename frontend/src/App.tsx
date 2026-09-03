@@ -20,7 +20,18 @@ export default function App() {
         {tab === "team" && <Team />}
       </main>
       <footer className="footer">
-        Lifelox · a community DEX on the Pexli&nbsp;v2 blockchain · Rust + Solidity, fused in one block
+        <div className="footer-links">
+          <button className={tab === "about" ? "active" : ""} onClick={() => setTab("about")}>
+            About
+          </button>
+          <span className="footer-dot">·</span>
+          <button className={tab === "team" ? "active" : ""} onClick={() => setTab("team")}>
+            Team
+          </button>
+        </div>
+        <div className="footer-tagline">
+          Lifelox · a community DEX on the Pexli chain · Rust + Solidity, fused in one block
+        </div>
       </footer>
     </div>
   );
