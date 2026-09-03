@@ -57,7 +57,7 @@ Lifelox/
 │
 ├── frontend/               React + wagmi/viem interface, orange theme
 │   └── src/
-│       ├── pages/          Swap · Pool (Create Pool + Positions) · Tokens
+│       ├── pages/          Swap · Pool (Create Pool + Positions) · Tokens · About · Team
 │       ├── components/     Header, ThemeToggle, TokenModal, Icons (all SVG)
 │       ├── hooks/          usePools — reads every pool from the factory
 │       └── config/         chain, wagmi, addresses, tokens, ABIs

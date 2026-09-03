@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FF7A00" />
+    <link rel="icon" type="image/svg+xml" href="/lifelox.svg" />
+    <title>404 — Lifelox</title>
+    <style>
+      :root {
+        --pex-orange: #ff7a00;
+        --pex-orange-bright: #ff9a3d;
+        --bg: #0b0906;
+        --card: rgba(30, 24, 18, 0.72);
+        --border: #3a2e22;
+        --text: #fff6ee;
+        --text-dim: #b6a693;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 620px at 50% -12%, rgba(255, 122, 0, 0.22), transparent 60%),
+          radial-gradient(900px 520px at 88% 4%, rgba(255, 154, 61, 0.10), transparent 55%),
+          var(--bg);
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; padding: 24px; letter-spacing: -0.01em;
+      }
+      .card {
+        max-width: 460px; width: 100%;
+        background: var(--card); backdrop-filter: blur(22px);
+        border: 1px solid var(--border); border-radius: 26px;
+        padding: 40px 32px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+      }
+      .brand { font-weight: 800; font-size: 21px; margin-bottom: 22px; }
+      .brand .pex { color: var(--pex-orange-bright); }
+      .code {
+        font-size: 64px; font-weight: 800; line-height: 1;
+        background: linear-gradient(135deg, var(--pex-orange-bright), var(--pex-orange));
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        margin-bottom: 8px;
+      }
+      h1 { font-size: 18px; font-weight: 700; margin: 0 0 10px; }
+      p { color: var(--text-dim); font-size: 14px; line-height: 1.6; margin: 0 0 26px; }
+      a.btn {
+        display: inline-block; text-decoration: none; color: #fff; font-weight: 700; font-size: 14px;
+        padding: 12px 22px; border-radius: 14px;
+        background: linear-gradient(135deg, var(--pex-orange-bright), var(--pex-orange));
+        box-shadow: 0 14px 34px rgba(255, 106, 0, 0.34);
+      }
+      .contact { margin-top: 22px; font-size: 13px; color: var(--text-dim); }
+      .contact a { color: var(--pex-orange-bright); text-decoration: none; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">Life<span class="pex">lox</span></div>
+      <div class="code">404</div>
+      <h1>This page doesn't exist</h1>
+      <p>The link you followed is broken, or the page has moved. Lifelox is a single-page
+        app — Swap, Pool, Tokens, About and Team all live at the same address.</p>
+      <a class="btn" href="/">Back to Lifelox</a>
+      <div class="contact">Questions? <a href="mailto:team@pex.li">team@pex.li</a></div>
+    </div>
+  </body>
+</html>

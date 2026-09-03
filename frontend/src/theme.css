@@ -294,6 +294,25 @@ svg { display: block; }
 }
 .empty code { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 6px; font-size: 12px; }
 
+/* ---------- About / Team ---------- */
+.about-lead { color: var(--text); font-size: 15px; line-height: 1.7; margin: 0 0 22px; }
+.about-lead a { color: var(--pex-orange-bright); font-weight: 600; }
+.about-section { margin-top: 22px; }
+.about-section h3 {
+  margin: 0 0 8px; font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-faint);
+}
+.about-section .subtle { font-size: 14px; line-height: 1.7; }
+.about-section .subtle a { color: var(--pex-orange-bright); font-weight: 600; }
+.about-list { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 14px; line-height: 1.8; }
+.about-list b { color: var(--text); }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.team-card {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;
+}
+.team-card-title { font-weight: 700; margin-bottom: 6px; }
+.team-card .subtle { font-size: 13px; line-height: 1.6; }
+
 /* ---------- Light theme ---------- */
 :root[data-theme="light"] {
   --bg: #fbf6f0;
