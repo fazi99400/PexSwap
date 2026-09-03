@@ -15,7 +15,7 @@ export function Header({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
       </div>
 
       <nav className="nav">
-        {(["swap", "pool", "tokens", "about", "team"] as Tab[]).map((t) => (
+        {(["swap", "pool", "tokens"] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>

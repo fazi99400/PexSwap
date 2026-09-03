@@ -7,11 +7,8 @@ export function About() {
       </div>
 
       <p className="about-lead">
-        Lifelox is a constant-product (x·y=k) automated market maker for{" "}
-        <a href="https://github.com/fazi99400/Fazi-Nom/tree/claude/pexli-v2-block-review-wxqbhh/pexli-v2" target="_blank" rel="noreferrer">
-          Pexli&nbsp;v2
-        </a>
-        , a dual-VM Layer-1 that executes Rust (SBF) and Solidity (EVM) smart contracts in
+        Lifelox is a constant-product (x·y=k) automated market maker for the Pexli chain,
+        a dual-VM Layer-1 that executes Rust (SBF) and Solidity (EVM) smart contracts in
         the same block, against one shared Merkle state tree. Tokens from either lane trade
         through the same pools, because on this chain they settle together.
       </p>
@@ -28,23 +25,20 @@ export function About() {
       <div className="about-section">
         <h3>Where it stands</h3>
         <p className="subtle">
-          Lifelox is deployed as a proof of concept on the Pexli&nbsp;v2 testnet at{" "}
+          Lifelox is deployed as a proof of concept on the Pexli chain testnet at{" "}
           <a href="https://pex.li" target="_blank" rel="noreferrer">pex.li</a>. The AMM logic
           (Uniswap-V2-style core, router, and a native Rust implementation with identical
-          math) is exercised by an end-to-end test suite on both lanes — see the{" "}
-          <a href="https://github.com/fazi99400/PexSwap" target="_blank" rel="noreferrer">
-            repository
-          </a>{" "}
-          for exactly what runs and passes.
+          math) is exercised by an end-to-end test suite on both lanes.
         </p>
       </div>
 
       <div className="about-section">
-        <h3>Open source</h3>
+        <h3>Source code</h3>
         <p className="subtle">
           The full source — Solidity contracts, the Rust AMM, the frontend, and the wallet
-          integration SDK — is public under the MIT license. Read the code, run the tests
-          yourself, fork it, or send a pull request.
+          integration SDK — is being prepared for a public release under the MIT license.
+          Once it's out, anyone will be able to read the code, run the tests, fork it, or
+          send a pull request.
         </p>
       </div>
 
